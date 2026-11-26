@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { submitBooking } from './actions';
 import { BookingCalendar } from './booking-calendar';
 
 const inputClass = 'w-full rounded-lg border bg-background px-3 py-2';
+const primaryButton = 'rounded-lg bg-[#FFE16A] px-4 py-3 font-semibold text-black disabled:opacity-60';
 const services = [
   { label: '健康在世', live: 1200, written: 1000 },
   { label: '高齡／重症／長照／安寧', live: 1400, written: 1200 },
@@ -20,6 +21,29 @@ export function BookingForm({ today }: { today: string }) {
   const [slots, setSlots] = useState([{ date: '', time: '' }, { date: '', time: '' }]);
   const [delivery, setDelivery] = useState('');
   const activeSlot = slots[candidate];
+  const [reviewing, setReviewing] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const method = format === 'live' ? '即時線上' : '非即時圖文';
+  const candidates = slots.map(({ date, time }) => date && time ? date + 'T' + time : '');
+
+  useEffect(() => {
+    if (reviewing) heading.current?.focus();
+  }, [reviewing]);
+
+  function review() {
+    if (format === 'live' && (candidates.some((slot) => !slot || Date.parse(slot + '+08:00') <= Date.now()) || candidates[0] === candidates[1])) {
+      setMessage('請選擇兩組不同的未來日期與時間。');
+      return;
+    }
+    if (format === 'written' && !delivery) {
+      setMessage('請選擇期望交付日。');
+      return;
+    }
+    setMessage('');
+    setReviewing(true);
+  }
 
   function updateSlot(field: 'date' | 'time', value: string) {
     setSlots((previous) => previous.map((slot, index) => index === candidate ? { ...slot, [field]: value } : slot));
@@ -27,10 +51,13 @@ export function BookingForm({ today }: { today: string }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!reviewing || pending) return;
     const form = new FormData(event.currentTarget);
+    form.set('category', services[categoryIndex].label);
+    form.set('format', format);
     if (format === 'live') {
-      form.set('first', slots[0].date && slots[0].time ? `${slots[0].date}T${slots[0].time}` : '');
-      form.set('second', slots[1].date && slots[1].time ? `${slots[1].date}T${slots[1].time}` : '');
+      form.set('first', candidates[0]);
+      form.set('second', candidates[1]);
     } else {
       form.set('delivery', delivery);
     }
@@ -47,9 +74,13 @@ export function BookingForm({ today }: { today: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4 rounded-xl border p-5">
+    <form onSubmit={submit} className="grid gap-4">
+      <h2 ref={heading} tabIndex={-1} className="text-xl font-bold">
+        {reviewing ? '確認預約申請' : '選擇服務與日期'}
+      </h2>
+      {!reviewing ? <>
       <label>服務類別
-        <select name="category" className={inputClass} onChange={(event) => setCategoryIndex(event.currentTarget.selectedIndex)}>
+        <select name="category" value={services[categoryIndex].label} className={inputClass} onChange={(event) => setCategoryIndex(event.currentTarget.selectedIndex)}>
           {services.map(({ label }) => <option key={label}>{label}</option>)}
         </select>
       </label>
@@ -85,15 +116,22 @@ export function BookingForm({ today }: { today: string }) {
         <BookingCalendar today={today} selected={delivery} onSelect={setDelivery} />
         {delivery && <p className="text-sm">期望交付日：{delivery}</p>}
       </fieldset>}
-      <label>聯絡人姓名<input className={inputClass} name="name" autoComplete="name" maxLength={80} required /></label>
-      <label>電子郵件<input className={inputClass} name="email" type="email" autoComplete="email" maxLength={254} required /></label>
-      <input name="website" hidden tabIndex={-1} autoComplete="off" />
-      <p className="text-sm">確認預約後，如需改期或取消，請至少於約定時間前一週通知匠寵客服。</p>
+      </> : <>
+        <dl className="grid gap-3 rounded-lg border p-3 text-sm">
+          <div><dt className="text-muted-foreground">服務</dt><dd>{services[categoryIndex].label}／{method}</dd></div>
+          {format === 'live' ? slots.map(({ date, time }, index) => (
+            <div key={index}><dt className="text-muted-foreground">{index === 0 ? '第一候選' : '第二候選'}（台灣時間）</dt><dd>{date} {time}</dd></div>
+          )) : <div><dt className="text-muted-foreground">期望交付日</dt><dd>{delivery}</dd></div>}
+        </dl>
+        <label>聯絡人姓名<input className={inputClass} name="name" autoComplete="name" maxLength={80} value={name} onChange={(event) => setName(event.target.value)} required /></label>
+        <label>電子郵件<input className={inputClass} name="email" type="email" autoComplete="email" maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+        <input name="website" hidden tabIndex={-1} autoComplete="off" />
+      </>}
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-      <button type="submit" disabled={pending} className="rounded-lg bg-[#FFE16A] px-4 py-3 font-semibold text-black disabled:opacity-60">
-        {pending ? '送出中…' : '送出預約申請'}
-      </button>
-      <p className="text-center text-sm text-muted-foreground">時段或交付日確認後再付款。</p>
+      {reviewing ? <>
+        <button type="submit" disabled={pending} className={primaryButton}>{pending ? '送出中…' : '送出預約申請'}</button>
+        <button type="button" disabled={pending} className="min-h-11 underline" onClick={() => { setMessage(''); setReviewing(false); }}>返回修改日期</button>
+      </> : <button type="button" className={primaryButton} onClick={review}>下一步</button>}
     </form>
   );
 }
