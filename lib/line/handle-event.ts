@@ -71,6 +71,7 @@ import {
   buildShopProductMessages,
 } from '@/lib/line/shop-flex';
 import { handleLineShopMessage } from '@/lib/line/shop-checkout';
+import { buildLineShopCartMessages, getLineShopCart } from '@/lib/line/shop-checkout';
 
 const RICH_MENU_HUB_KINDS = new Set([
   'hub_jar',
@@ -184,7 +185,11 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   const parsed = parseLineUserText(msgEvent.message.text);
 
   // 購物入口不需要會員或 HQ 查詢：先選分類，再由 Shopify 提供商品卡與結帳。
-  if (parsed.kind === 'shop_home' || parsed.kind === 'shop_category') {
+  if (parsed.kind === 'shop_home' || parsed.kind === 'shop_category' || parsed.kind === 'shop_cart') {
+    if (parsed.kind === 'shop_cart') {
+      await replyLineMessage(replyToken, buildLineShopCartMessages(await getLineShopCart(lineUserId)), { lineUserId });
+      return;
+    }
     if (parsed.kind === 'shop_home') {
       await replyLineMessage(replyToken, buildShopHomeMessages(), { lineUserId });
       return;

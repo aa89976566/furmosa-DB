@@ -10,6 +10,7 @@ export type ParsedLineText =
   | { kind: 'help' }
   | { kind: 'partner_apply' }
   | { kind: 'shop_home' }
+  | { kind: 'shop_cart' }
   | { kind: 'shop_category'; category: 'treats' | 'toys' | 'gifts' | 'lifestyle' | 'all' }
   | { kind: 'greeting' }
   | { kind: 'status' }
@@ -44,6 +45,7 @@ const SAVINGS_RE =
 const HELP_RE = /^(?:說明|帮助|help|\?|？|指令|使用方法|存罐攻略|攻略|問問匠寵)$/i;
 const PARTNER_APPLY_RE = /^(?:申請合作|合作申請)$/i;
 const SHOP_HOME_RE = /^(?:線上購物|逛商品|購物|商城|買東西)$/i;
+const SHOP_CART_RE = /^(?:購物車|查看購物車|我的購物車|結帳袋)$/i;
 const BIND_HELP_RE =
   /^(?:如何綁定|怎么绑定|怎麼綁定|如何绑定|綁定方式|绑定方式|怎麼綁|如何綁|我要綁定|開戶存罐罐|開戶|先認個人|幫毛孩開戶|加入會員|立即開戶|立刻開戶)$/i;
 const GREETING_RE = /^(?:你好|您好|hi|hello|hey|哈囉|哈喽)$/i;
@@ -126,6 +128,7 @@ export function parseLineUserText(raw: string): ParsedLineText {
   if (SAVINGS_RE.test(text)) return { kind: 'savings' };
   if (BALANCE_RE.test(text)) return { kind: 'balance' };
   if (PARTNER_APPLY_RE.test(text)) return { kind: 'partner_apply' };
+  if (SHOP_CART_RE.test(text)) return { kind: 'shop_cart' };
   if (SHOP_HOME_RE.test(text)) return { kind: 'shop_home' };
   if (/^(?:逛零食|零食點心)$/.test(text)) return { kind: 'shop_category', category: 'treats' };
   if (/^(?:逛玩具|玩具用品)$/.test(text)) return { kind: 'shop_category', category: 'toys' };

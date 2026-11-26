@@ -15,6 +15,7 @@ import { CUSTOMER_ID_EXAMPLE } from '../../customers/customer-id';
 describe('parseLineUserText', () => {
   it('routes hybrid shopping entry and categories', () => {
     assert.equal(parseLineUserText('線上購物').kind, 'shop_home');
+    assert.equal(parseLineUserText('查看購物車').kind, 'shop_cart');
     assert.deepEqual(parseLineUserText('逛零食'), { kind: 'shop_category', category: 'treats' });
     assert.deepEqual(parseLineUserText('逛玩具'), { kind: 'shop_category', category: 'toys' });
     assert.deepEqual(parseLineUserText('逛禮品'), { kind: 'shop_category', category: 'gifts' });

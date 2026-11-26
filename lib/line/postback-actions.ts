@@ -55,12 +55,14 @@ import { prisma } from '@/lib/prisma';
 import {
   addLineShopItem,
   buildLineShopCartMessages,
+  getLineShopCart,
   startLineShopCheckout,
 } from '@/lib/line/shop-checkout';
 import { listLineShopProducts, type LineShopCategory } from '@/lib/line/shop-catalog';
 import {
   buildShopFallbackMessages,
   buildShopHomeMessages,
+  buildShopProductDetailMessages,
   buildShopProductMessages,
 } from '@/lib/line/shop-flex';
 
@@ -196,6 +198,29 @@ export async function handleLinePostback(
       ? Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1)
       : 1;
     await replyShopCategory(replyToken, category, page);
+    return;
+  }
+
+  if (action === 'shop_product') {
+    const variantId = params.get('variant') ?? '';
+    try {
+      const products = await listLineShopProducts('all', { limit: 100 });
+      const product = products.find((entry) => entry.variantId === variantId);
+      if (!product) {
+        await replyLineText(replyToken, '這項商品目前無法顯示，請重新開啟商品列表。');
+        return;
+      }
+      await replyLineMessage(replyToken, buildShopProductDetailMessages(product));
+    } catch (err) {
+      console.error('[line/shop] product detail unavailable', err);
+      await replyLineText(replyToken, '商品介紹剛剛讀取比較慢，請再試一次。');
+    }
+    return;
+  }
+
+  if (action === 'shop_cart') {
+    const draft = await getLineShopCart(lineUserId);
+    await replyLineMessage(replyToken, buildLineShopCartMessages(draft));
     return;
   }
 
