@@ -31,20 +31,36 @@ export function resolveLineShopShipping(subtotal: number) {
     : { mode: '711' as const, fee: LINE_SHOP_711_FEE, label: '7-ELEVEN 取貨' };
 }
 
+export function computeLineShopCartSummary(items: LineShopCartItem[]) {
+  const subtotal = shopCartSubtotal(items);
+  const shipping = resolveLineShopShipping(subtotal);
+  return {
+    subtotal,
+    shippingMode: shipping.mode,
+    shippingFee: shipping.fee,
+    shippingLabel: shipping.label,
+    freeShippingGap: Math.max(0, LINE_SHOP_FREE_SHIPPING_THRESHOLD - subtotal),
+    total: subtotal + shipping.fee,
+  };
+}
+
 function money(value: number) {
   return `NT$${Math.round(value).toLocaleString('zh-TW')}`;
 }
 
 export function buildLineShopCartMessages(draft: LineShopDraft): LineReplyMessage[] {
-  const subtotal = shopCartSubtotal(draft.items);
+  const summary = computeLineShopCartSummary(draft.items);
   if (draft.items.length === 0) return [{ type: 'text', text: '購物車還是空的，先挑一樣喜歡的。' }];
   const lines = draft.items.map((item) => `${item.title} × ${item.quantity}　${money(item.price * item.quantity)}`);
+  const shippingLine = summary.shippingMode === 'home'
+    ? `目前寄送：宅配到府，運費 NT$0（已達免運）`
+    : `目前寄送：7-ELEVEN 取貨，運費 ${money(summary.shippingFee)}\n再買 ${money(summary.freeShippingGap)} → 改宅配到府、免運`;
   return [{
     type: 'text',
-    text: `購物車\n${lines.join('\n')}\n\n商品小計 ${money(subtotal)}`,
+    text: `✓ 已加入購物車\n${lines.join('\n')}\n\n商品小計 ${money(summary.subtotal)}\n${shippingLine}\n\n金額以結帳確認為準。`,
     quickReply: { items: [
       { type: 'action', action: { type: 'postback', label: '結帳', data: 'jd=shop_checkout', displayText: '我要結帳' } },
-      { type: 'action', action: { type: 'message', label: '繼續逛', text: '線上購物' } },
+      { type: 'action', action: { type: 'postback', label: '繼續逛', data: 'jd=shop_home', displayText: '繼續逛' } },
     ] },
   }];
 }
@@ -93,8 +109,8 @@ export async function startLineShopCheckout(replyToken: string, lineUserId: stri
     await replyLineText(replyToken, '購物車還是空的，先從「線上購物」挑商品。');
     return;
   }
-  const subtotal = shopCartSubtotal(current.draft.items);
-  const shipping = resolveLineShopShipping(subtotal);
+  const summary = computeLineShopCartSummary(current.draft.items);
+  const shipping = resolveLineShopShipping(summary.subtotal);
   const draft = {
     ...current.draft,
     shippingMode: shipping.mode,
@@ -102,9 +118,9 @@ export async function startLineShopCheckout(replyToken: string, lineUserId: stri
   };
   await save(lineUserId, 'ASK_NAME', draft);
   const shippingText = shipping.mode === 'home'
-    ? `商品小計 ${money(subtotal)}，已滿 ${money(LINE_SHOP_FREE_SHIPPING_THRESHOLD)}，這單宅配免運。`
-    : `商品小計 ${money(subtotal)}，未滿 ${money(LINE_SHOP_FREE_SHIPPING_THRESHOLD)}，使用 7-ELEVEN 取貨，運費 ${money(LINE_SHOP_711_FEE)}。`;
-  await replyLineText(replyToken, `${shippingText}\n\n先告訴我收件人姓名。`);
+    ? `商品小計 ${money(summary.subtotal)}，宅配到府，運費 NT$0（已達免運）。`
+    : `商品小計 ${money(summary.subtotal)}，7-ELEVEN 取貨，運費 ${money(summary.shippingFee)}。`;
+  await replyLineText(replyToken, `${shippingText}\n接下來問 3 個問題。\n\n1/3 收件人姓名？${shipping.mode === '711' ? '\n取貨時會核對證件，請填本名。' : ''}`);
 }
 
 function validPhone(text: string) {
@@ -210,7 +226,7 @@ export async function handleLineShopMessage(
     }
     draft.recipientName = text;
     await save(lineUserId, 'ASK_PHONE', draft);
-    await replyLineText(replyToken, '再給我收件人手機，例如 0912345678。');
+    await replyLineText(replyToken, `✓ 姓名：${text}\n\n2/3 收件人手機？\n例如：0912345678`);
     return true;
   }
   if (current.session.step === 'ASK_PHONE') {
@@ -222,8 +238,8 @@ export async function handleLineShopMessage(
     draft.phone = phone;
     await save(lineUserId, 'ASK_DESTINATION', draft);
     await replyLineText(replyToken, draft.shippingMode === 'home'
-      ? '請輸入完整宅配地址（縣市、區域、路段、門牌與樓層）。'
-      : '請輸入要取貨的 7-ELEVEN「門市名稱＋店號」。');
+      ? `✓ 手機：${phone}\n\n3/3 宅配地址？\n請包含縣市、區域、路段、門牌與樓層。`
+      : `✓ 手機：${phone}\n\n3/3 取貨的 7-ELEVEN 門市？\n請輸入「門市名稱＋店號」。`);
     return true;
   }
   if (current.session.step === 'ASK_DESTINATION') {

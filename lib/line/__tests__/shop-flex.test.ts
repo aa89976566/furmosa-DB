@@ -1,24 +1,25 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildShopHomeMessages, buildShopProductMessages } from '../shop-flex';
+import {
+  buildLegacyShopHomeMessages,
+  buildShopHomeMessages,
+  buildShopProductMessages,
+} from '../shop-flex';
 
 describe('LINE hybrid shopping Flex', () => {
-  it('starts with the lightweight branded category chooser', () => {
+  it('starts with a text question and postback quick replies', () => {
     const raw = JSON.stringify(buildShopHomeMessages());
-    assert.match(raw, /想找哪一種/);
+    assert.match(raw, /想幫毛孩找哪一種/);
+    assert.match(raw, /quickReply/);
+    assert.match(raw, /jd=shop_category&amp;category=treats|jd=shop_category&category=treats/);
+    assert.doesNotMatch(raw, /bark-sniff-shopping-hero-v1\.jpg/);
+    assert.doesNotMatch(raw, /"type":"message"/);
+  });
+
+  it('keeps the legacy hero builder available for rollback', () => {
+    const raw = JSON.stringify(buildLegacyShopHomeMessages());
     assert.match(raw, /bark-sniff-shopping-hero-v1\.jpg/);
     assert.match(raw, /"aspectRatio":"20:13"/);
-    assert.match(raw, /"aspectMode":"cover"/);
-    assert.match(raw, /逛零食/);
-    assert.match(raw, /逛玩具/);
-    assert.match(raw, /逛禮品/);
-    assert.match(raw, /逛生活用品/);
-    assert.doesNotMatch(raw, /quickReply/);
-    assert.doesNotMatch(raw, /今天想寵哪一招/);
-    assert.doesNotMatch(raw, /好料先吃|玩到沒電|送禮有面子|全部都要/);
-    assert.doesNotMatch(raw, /狗老闆/);
-    assert.doesNotMatch(raw, /"style":"primary"/);
-    assert.doesNotMatch(raw, /"style":"secondary"/);
   });
 
   it('renders real product photos with a neutral in-chat cart action', () => {
@@ -38,9 +39,24 @@ describe('LINE hybrid shopping Flex', () => {
     assert.doesNotMatch(raw, /"style":"primary"/);
     assert.doesNotMatch(raw, /"style":"secondary"/);
     assert.doesNotMatch(raw, /100g/);
-    assert.match(raw, /逛零食/);
-    assert.match(raw, /逛玩具/);
-    assert.match(raw, /逛禮品/);
-    assert.match(raw, /逛生活用品/);
+    assert.match(raw, /jd=shop_category&amp;category=treats|jd=shop_category&category=treats/);
+    assert.doesNotMatch(raw, /"type":"message"/);
+  });
+
+  it('shows five products and a LINE-native more card', () => {
+    const products = Array.from({ length: 6 }, (_, index) => ({
+      id: String(index), title: `商品 ${index}`, handle: `product-${index}`,
+      productType: '寵物零食', tags: ['零食'], imageUrl: null,
+      variantId: String(100 + index), variantTitle: '單一規格', price: 100,
+      available: true,
+    }));
+    const raw = JSON.stringify(buildShopProductMessages('treats', products));
+    assert.equal((raw.match(/"type":"bubble"/g) ?? []).length, 6);
+    assert.match(raw, /jd=shop_more&amp;category=treats&amp;page=2|jd=shop_more&category=treats&page=2/);
+    assert.doesNotMatch(raw, /商品 5/);
+
+    const lastPage = JSON.stringify(buildShopProductMessages('treats', products, { page: 99 }));
+    assert.match(lastPage, /商品 5/);
+    assert.doesNotMatch(lastPage, /"contents":\[\]/);
   });
 });
