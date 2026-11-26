@@ -21,7 +21,7 @@ describe('LINE hybrid shopping Flex', () => {
     assert.doesNotMatch(raw, /"style":"secondary"/);
   });
 
-  it('renders real product photos with one neutral Shopify product link', () => {
+  it('renders real product photos with a neutral in-chat cart action', () => {
     const messages = buildShopProductMessages('treats', [{
       id: '1', title: '牛肉凍乾', handle: 'beef-freeze-dried', productType: '寵物零食',
       tags: ['凍乾'], imageUrl: 'https://cdn.example.com/beef.jpg', variantId: '11',
@@ -31,10 +31,10 @@ describe('LINE hybrid shopping Flex', () => {
     assert.match(raw, /carousel/);
     assert.match(raw, /beef\.jpg/);
     assert.match(raw, /NT\$359/);
-    assert.match(raw, /看商品/);
-    assert.match(raw, /products\/beef-freeze-dried/);
+    assert.match(raw, /加入購物車/);
+    assert.match(raw, /jd=shop_add&amp;variant=11|jd=shop_add&variant=11/);
     assert.doesNotMatch(raw, /cart\/11:1/);
-    assert.doesNotMatch(raw, /加入購物車/);
+    assert.doesNotMatch(raw, /products\/beef-freeze-dried/);
     assert.doesNotMatch(raw, /"style":"primary"/);
     assert.doesNotMatch(raw, /"style":"secondary"/);
     assert.doesNotMatch(raw, /100g/);

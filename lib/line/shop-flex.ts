@@ -1,7 +1,6 @@
 import type { LineReplyMessage } from '@/lib/line/reply';
 import {
   getCollectionUrl,
-  getProductUrl,
   type LineShopCategory,
   type LineShopProduct,
 } from '@/lib/line/shop-catalog';
@@ -126,7 +125,12 @@ function productBubble(product: LineShopProduct) {
       contents: [
         {
           type: 'button', style: 'link', height: 'sm',
-          action: { type: 'uri', label: '看商品', uri: getProductUrl(product) },
+          action: {
+            type: 'postback',
+            label: '加入購物車',
+            data: `jd=shop_add&variant=${encodeURIComponent(product.variantId)}`,
+            displayText: `加入購物車：${product.title}`,
+          },
         },
       ],
     },
@@ -138,7 +142,10 @@ function productBubble(product: LineShopProduct) {
       size: 'full',
       aspectRatio: '1:1',
       aspectMode: 'cover',
-      action: { type: 'uri', uri: getProductUrl(product) },
+      action: {
+        type: 'postback',
+        data: `jd=shop_add&variant=${encodeURIComponent(product.variantId)}`,
+      },
     };
   }
   return contents;
