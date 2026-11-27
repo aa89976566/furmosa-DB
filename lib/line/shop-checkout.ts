@@ -50,14 +50,52 @@ function money(value: number) {
 
 export function buildLineShopCartMessages(draft: LineShopDraft): LineReplyMessage[] {
   const summary = computeLineShopCartSummary(draft.items);
-  if (draft.items.length === 0) return [{ type: 'text', text: '購物車還是空的，先挑一樣喜歡的。' }];
-  const lines = draft.items.map((item) => `${item.title} × ${item.quantity}　${money(item.price * item.quantity)}`);
+  if (draft.items.length === 0) return [{
+    type: 'flex',
+    altText: '購物車目前是空的｜回商品分類逛逛',
+    contents: {
+      type: 'bubble', size: 'kilo',
+      styles: { body: { backgroundColor: '#F8F6EF' }, footer: { backgroundColor: '#F8F6EF' } },
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', contents: [
+        { type: 'text', text: '購物車目前是空的', size: 'lg', color: '#203E54', weight: 'bold', wrap: true },
+        { type: 'text', text: '先從商品分類挑一樣喜歡的。', size: 'sm', color: '#60717D', wrap: true },
+      ] },
+      footer: { type: 'box', layout: 'vertical', paddingAll: '18px', paddingTop: '0px', contents: [{
+        type: 'button', style: 'primary', color: '#203E54', height: 'sm',
+        action: { type: 'postback', label: '開始逛商品', data: 'jd=shop_home', displayText: '開始逛商品' },
+      }] },
+    },
+  }];
+  const lines = draft.items.map((item) => {
+    const variant = item.variantTitle && item.variantTitle !== '單一規格' ? `｜${item.variantTitle}` : '';
+    return `${item.title}${variant} × ${item.quantity}　${money(item.price * item.quantity)}`;
+  });
   const shippingLine = summary.shippingMode === 'home'
     ? `目前寄送：宅配到府，運費 NT$0（已達免運）`
     : `目前寄送：7-ELEVEN 取貨，運費 ${money(summary.shippingFee)}\n再買 ${money(summary.freeShippingGap)} → 改宅配到府、免運`;
   return [{
-    type: 'text',
-    text: `✓ 已加入購物車\n${lines.join('\n')}\n\n商品小計 ${money(summary.subtotal)}\n${shippingLine}\n\n金額以結帳確認為準。`,
+    type: 'flex',
+    altText: `購物車 ${draft.items.reduce((sum, item) => sum + item.quantity, 0)} 件｜小計 ${money(summary.subtotal)}`,
+    contents: {
+      type: 'bubble', size: 'mega',
+      styles: { body: { backgroundColor: '#F8F6EF' }, footer: { backgroundColor: '#F8F6EF' } },
+      body: { type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px', contents: [
+        { type: 'text', text: '購物車', size: 'xl', color: '#203E54', weight: 'bold' },
+        { type: 'text', text: lines.join('\n'), size: 'sm', color: '#203E54', wrap: true },
+        { type: 'separator', color: '#DEDBD5' },
+        { type: 'text', text: `商品小計 ${money(summary.subtotal)}`, size: 'lg', color: '#203E54', weight: 'bold', wrap: true },
+        { type: 'text', text: shippingLine, size: 'sm', color: '#60717D', wrap: true },
+        { type: 'text', text: '尚未下單，金額以結帳確認為準。', size: 'xs', color: '#60717D', wrap: true },
+      ] },
+      footer: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', paddingTop: '0px', contents: [
+        { type: 'button', style: 'primary', color: '#203E54', height: 'sm', action: {
+          type: 'postback', label: '結帳', data: 'jd=shop_checkout', displayText: '我要結帳',
+        } },
+        { type: 'button', style: 'secondary', height: 'sm', action: {
+          type: 'postback', label: '繼續逛', data: 'jd=shop_home', displayText: '繼續逛',
+        } },
+      ] },
+    },
     quickReply: { items: [
       { type: 'action', action: { type: 'postback', label: '結帳', data: 'jd=shop_checkout', displayText: '我要結帳' } },
       { type: 'action', action: { type: 'postback', label: '繼續逛', data: 'jd=shop_home', displayText: '繼續逛' } },
@@ -111,7 +149,7 @@ export async function addLineShopItem(lineUserId: string, variantId: string) {
 export async function startLineShopCheckout(replyToken: string, lineUserId: string) {
   const current = await currentShop(lineUserId);
   if (!current || current.draft.items.length === 0) {
-    await replyLineText(replyToken, '購物車還是空的，先從「線上購物」挑商品。');
+    await replyLineMessage(replyToken, buildLineShopCartMessages({ items: [] }), { lineUserId });
     return;
   }
   const summary = computeLineShopCartSummary(current.draft.items);
