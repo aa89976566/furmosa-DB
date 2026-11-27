@@ -66,7 +66,7 @@ export function LiffRefillClient(props: Props) {
   return (
     <LiffShell
       liffId={props.liffId}
-      title={REFILL_COPY.ctaWantRefill}
+      title="線上預購換罐"
       reconnectPath={`/liff/refill${props.storeId ? `?storeId=${props.storeId}` : ''}`}
     >
       {({ idToken }) => <RefillFlow idToken={idToken} {...props} />}
@@ -287,10 +287,10 @@ function RefillFlow({
       <section className="space-y-4 rounded-xl border bg-card p-5">
         <h2 className="text-base font-semibold">換罐預購需要已確認的美容預約</h2>
         <p className="text-sm text-muted-foreground">
-          目前沒有已確認且尚未到期的預約。請回匠寵 LINE 輸入「查看合作店」，聯絡店家預約。店家確認後，再回來查詢。
+          目前沒有可用於線上預購的美容預約。想直接到店換罐，可以帶完整空罐回原合作店，出發前先確認供應。
         </p>
         <Button asChild className="min-h-12 w-full">
-          <a href={FURMOSA_OFFICIAL_LINE_CHAT_URL}>回匠寵 LINE 查合作店</a>
+          <a href={FURMOSA_OFFICIAL_LINE_CHAT_URL}>回 LINE 查看合作店</a>
         </Button>
         <Button
           type="button"
@@ -301,7 +301,7 @@ function RefillFlow({
             setEligibilityCheck((count) => count + 1);
           }}
         >
-          重新查詢預約
+          店家已確認預約？重新查詢
         </Button>
       </section>
     );
