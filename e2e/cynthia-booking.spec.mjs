@@ -19,6 +19,12 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
 
   if (isMobile) await page.setViewportSize({ width: 390, height: 500 });
   await page.goto('/book/cynthia');
+  const currentStep = page.getByRole('list', { name: '預約進度' }).locator('[aria-current=step]');
+  await expect(currentStep).toHaveText('選服務');
+  await page.getByRole('radio', { name: '非即時圖文' }).check();
+  await expect(page.getByText('第 1 步／共 4 步 · 選服務')).toBeVisible();
+  await page.getByRole('radio', { name: '即時線上' }).check();
+  await expect(page.getByText('第 1 步／共 5 步 · 選服務')).toBeVisible();
   await page.getByRole('button', { name: '選擇時段', exact: true }).click();
   await page.getByRole('button', { name: '下個月', exact: true }).click();
   await expect(page.getByLabel('開始時間（台灣時間）')).toHaveCount(0);
@@ -30,6 +36,7 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
   await expect(page.getByRole('option', { name: '14:15', exact: true })).toHaveCount(0);
   await page.getByLabel('開始時間（台灣時間）').selectOption('14:00');
   await page.getByRole('button', { name: '記下首選', exact: true }).click();
+  await expect(currentStep).toHaveText('選備用');
   await expect(page.getByRole('status', { name: '已記下 1 組，共 2 組' })).toBeVisible();
   await expect(page.getByText('首選排不開時', { exact: false })).toBeInViewport();
   await page.getByRole('button', { name: date, exact: true }).click();
@@ -43,6 +50,7 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
   await page.getByLabel('聯絡人姓名').fill('隔離送單');
   await page.getByLabel('LINE ID').fill(lineId);
   await page.getByRole('button', { name: '前往付款' }).click();
+  await expect(page.getByText('第 5 步／共 5 步 · 待付款')).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: '已收到預約申請' })).toBeVisible();
   const tasks = await db.task.findMany({ where: { taskId: { startsWith: 'BOOK-CYN-' }, description: { contains: lineId } } });
   expect(tasks).toHaveLength(1);
