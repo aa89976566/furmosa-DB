@@ -5,6 +5,7 @@ import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
 import { Button } from '@/components/ui/button';
 import { REFILL_COPY } from '@/lib/refill/copy';
+import { FURMOSA_OFFICIAL_LINE_CHAT_URL } from '@/lib/line/official-line';
 
 type Props = {
   liffId: string;
@@ -53,6 +54,7 @@ type Step =
   | 'load'
   | 'register'
   | 'pick'
+  | 'no_booking'
   | 'confirm'
   | 'paying'
   | 'success'
@@ -84,6 +86,7 @@ function RefillFlow({
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   const [order, setOrder] = useState<OrderView | null>(null);
   const [busy, setBusy] = useState(false);
+  const [eligibilityCheck, setEligibilityCheck] = useState(0);
 
   const restartLineLogin = useCallback(async () => {
     const returnUrl = new URL('/liff/refill', window.location.origin);
@@ -166,8 +169,7 @@ function RefillFlow({
           return;
         }
         if (e.bookings.length === 0) {
-          setError(REFILL_COPY.noBooking);
-          setStep('error');
+          setStep('no_booking');
           return;
         }
         if (e.selectedBooking) {
@@ -186,7 +188,7 @@ function RefillFlow({
     return () => {
       cancelled = true;
     };
-  }, [orderId, loadEligibility, loadOrder]);
+  }, [orderId, loadEligibility, loadOrder, eligibilityCheck]);
 
   async function onConfirmPay() {
     if (!appointmentId) return;
@@ -277,6 +279,31 @@ function RefillFlow({
         <p className="text-sm text-muted-foreground">銀行正在回傳結果，先別關掉這個畫面</p>
         {error && <LiffStatus message={error} variant="error" />}
       </div>
+    );
+  }
+
+  if (step === 'no_booking') {
+    return (
+      <section className="space-y-4 rounded-xl border bg-card p-5">
+        <h2 className="text-base font-semibold">換罐預購需要已確認的美容預約</h2>
+        <p className="text-sm text-muted-foreground">
+          目前沒有已確認且尚未到期的預約。請回匠寵 LINE 輸入「查看合作店」，聯絡店家預約。店家確認後，再回來查詢。
+        </p>
+        <Button asChild className="min-h-12 w-full">
+          <a href={FURMOSA_OFFICIAL_LINE_CHAT_URL}>回匠寵 LINE 查合作店</a>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-12 w-full"
+          onClick={() => {
+            setStep('load');
+            setEligibilityCheck((count) => count + 1);
+          }}
+        >
+          重新查詢預約
+        </Button>
+      </section>
     );
   }
 

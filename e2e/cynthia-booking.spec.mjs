@@ -10,28 +10,35 @@ if (process.env.CI !== 'true' || process.env.DATABASE_URL !== ciDatabase || proc
 const db = new PrismaClient();
 test.afterAll(async () => { await db.$disconnect(); });
 
-test('Cynthia calendar submits both Taiwan times and shows the request in HQ', async ({ page }) => {
+test('Cynthia calendar submits both Taiwan times and shows the request in HQ', async ({ page, isMobile }) => {
   const suffix = randomUUID();
   const email = 'booking-' + suffix + '@example.invalid';
   const lineId = 'booking-' + suffix;
   const password = randomUUID();
   await db.user.create({ data: { email, name: '隔離驗收人員', role: 'admin', passwordHash: await bcrypt.hash(password, 10) } });
 
+  if (isMobile) await page.setViewportSize({ width: 390, height: 500 });
   await page.goto('/book/cynthia');
-  await page.getByRole('button', { name: '下一步', exact: true }).click();
+  await page.getByRole('button', { name: '選擇時段', exact: true }).click();
   await page.getByRole('button', { name: '下個月', exact: true }).click();
+  await expect(page.getByLabel('開始時間（台灣時間）')).toHaveCount(0);
   const day = page.getByRole('button', { name: /^\d{4}-\d{2}-01$/ });
   const date = await day.getAttribute('aria-label');
+  if (isMobile) await expect(page.getByRole('button', { name: /^\d{4}-\d{2}-(28|29|30|31)$/ }).last()).toBeInViewport();
   await day.click();
+  await expect(day).toHaveCount(0);
   await page.getByLabel('開始時間（台灣時間）').fill('14:00');
-  await page.getByRole('button', { name: '確認第一組，選擇第二組', exact: true }).click();
+  await page.getByRole('button', { name: '記下首選', exact: true }).click();
+  await expect(page.getByRole('status', { name: '已記下 1 組，共 2 組' })).toBeVisible();
+  await expect(page.getByText('首選排不開時', { exact: false })).toBeInViewport();
   await page.getByRole('button', { name: '下個月', exact: true }).click();
   await page.getByRole('button', { name: date, exact: true }).click();
   await page.getByLabel('開始時間（台灣時間）').fill('14:00');
-  await page.getByRole('button', { name: '下一步', exact: true }).click();
+  await page.getByRole('button', { name: '記下備用', exact: true }).click();
   await expect(page.locator('main').getByRole('alert')).toContainText('兩組不同');
   await page.getByLabel('開始時間（台灣時間）').fill('16:30');
-  await page.getByRole('button', { name: '下一步', exact: true }).click();
+  await page.getByRole('button', { name: '記下備用', exact: true }).click();
+  await expect(page.getByRole('status', { name: '已記下 2 組，共 2 組' })).toBeVisible();
   await expect(page.getByText('如需改期', { exact: false })).toContainText('14 天');
   await page.getByLabel('聯絡人姓名').fill('隔離送單');
   await page.getByLabel('LINE ID').fill(lineId);

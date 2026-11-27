@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
-import { authenticateLineIdToken } from '@/lib/line/liff-customer';
+import { getLiffIdIfConfigured, getLineChannelId } from '@/lib/line/liff-config';
+import { verifyLineIdToken } from '@/lib/line/verify-id-token';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
 import { RefillError } from '@/lib/refill/errors';
 import {
@@ -22,7 +23,10 @@ export async function requireRefillCustomer(idToken: string) {
 
   if (!lineUserId) {
     try {
-      ({ lineUserId } = await authenticateLineIdToken(idToken));
+      const liffId = getLiffIdIfConfigured('refill') ?? getLiffIdIfConfigured('register');
+      const channelId = liffId?.match(/^(\d+)-/)?.[1] ?? getLineChannelId();
+      const payload = await verifyLineIdToken(idToken, channelId);
+      lineUserId = payload.sub;
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       if (/expired|invalid id token|idtoken/i.test(message)) {

@@ -6,8 +6,10 @@ export type LineIdTokenPayload = {
   picture?: string;
 };
 
-export async function verifyLineIdToken(idToken: string): Promise<LineIdTokenPayload> {
-  const clientId = getLineChannelId();
+export async function verifyLineIdToken(
+  idToken: string,
+  clientId = getLineChannelId(),
+): Promise<LineIdTokenPayload> {
   const body = new URLSearchParams({
     id_token: idToken,
     client_id: clientId,
