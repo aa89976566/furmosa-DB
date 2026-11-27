@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
 import { Button } from '@/components/ui/button';
+import { REFILL_PRICES } from '@/lib/refill/constants';
 import { REFILL_COPY } from '@/lib/refill/copy';
 import { FURMOSA_OFFICIAL_LINE_CHAT_URL } from '@/lib/line/official-line';
 
