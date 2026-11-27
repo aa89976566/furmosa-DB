@@ -40,9 +40,29 @@ test('LINE shop cart reply keeps shipping and fee together with postback actions
   }));
   assert.match(raw, /7-ELEVEN 取貨，運費 NT\$60/);
   assert.match(raw, /再買 NT\$869/);
+  assert.match(raw, /"type":"flex"/);
+  assert.match(raw, /尚未下單/);
   assert.match(raw, /jd=shop_checkout/);
   assert.match(raw, /jd=shop_home/);
   assert.doesNotMatch(raw, /"type":"message"/);
+});
+
+test('LINE shop cart shows variant and total quantity on desktop', () => {
+  const raw = JSON.stringify(buildLineShopCartMessages({
+    items: [{
+      productId: 'p', title: '雞霸', variantId: 'v', variantTitle: '45g',
+      price: 299, quantity: 2,
+    }],
+  }));
+  assert.match(raw, /雞霸｜45g × 2/);
+  assert.match(raw, /購物車 2 件｜小計 NT\$598/);
+});
+
+test('LINE shop empty cart has a desktop-safe route back to categories', () => {
+  const raw = JSON.stringify(buildLineShopCartMessages({ items: [] }));
+  assert.match(raw, /"type":"flex"/);
+  assert.match(raw, /jd=shop_home/);
+  assert.doesNotMatch(raw, /quickReply/);
 });
 
 test('LINE shop below threshold uses 7-ELEVEN and NT$60', () => {

@@ -207,13 +207,13 @@ export async function handleLinePostback(
       const products = await listLineShopProducts('all', { limit: 100 });
       const product = products.find((entry) => entry.variantId === variantId);
       if (!product) {
-        await replyLineText(replyToken, '這項商品目前無法顯示，請重新開啟商品列表。');
+        await replyLineMessage(replyToken, buildShopHomeMessages());
         return;
       }
       await replyLineMessage(replyToken, buildShopProductDetailMessages(product));
     } catch (err) {
       console.error('[line/shop] product detail unavailable', err);
-      await replyLineText(replyToken, '商品介紹剛剛讀取比較慢，請再試一次。');
+      await replyLineMessage(replyToken, buildShopHomeMessages());
     }
     return;
   }
@@ -229,13 +229,13 @@ export async function handleLinePostback(
     try {
       const result = await addLineShopItem(lineUserId, variantId);
       if (!result.ok) {
-        await replyLineText(replyToken, result.error);
+        await replyLineMessage(replyToken, buildShopHomeMessages());
         return;
       }
       await replyLineMessage(replyToken, buildLineShopCartMessages(result.draft));
     } catch (err) {
       console.error('[line/shop] add item failed', err);
-      await replyLineText(replyToken, '商品剛剛沒有成功加入，請再試一次。');
+      await replyLineMessage(replyToken, buildShopFallbackMessages('all'));
     }
     return;
   }
