@@ -24,13 +24,16 @@ export function BookingForm({ today }: { today: string }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [lineId, setLineId] = useState('');
+  const [checkout, setCheckout] = useState<{ checkoutUrl: string; reference: string } | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const candidateValues = slots.map(({ date, time }) => date && time ? date + 'T' + time : '');
   const slot = slots[candidate];
   const choosingDate = step === 1 && (format === 'written' || !pickingTime);
+  const progressLabels = format === 'live' ? ['首選', '備用', '聯絡', '付款'] : ['交付日期', '聯絡', '付款'];
+  const currentProgress = step === 0 ? -1 : step === 1 ? (format === 'live' ? candidate : 0) : step + progressLabels.length - 4;
   const completed = confirmed.filter(Boolean).length;
   const candidateLabel = candidate === 0 ? '首選' : '備用';
-  const title = step === 0 ? '選擇服務' : step === 2 ? (format === 'live' ? '兩組時段已選好' : '填寫 LINE') :
+  const title = step === 3 ? '完成付款' : step === 0 ? '選擇服務' : step === 2 ? (format === 'live' ? '兩組時段已選好' : '填寫 LINE') :
     format === 'written' ? '選擇期望交付日' : (candidate === 1 && !pickingTime ? '再選一個備用日期' : '選' + candidateLabel + (pickingTime ? '時間' : '日期'));
 
   useEffect(() => {
@@ -105,7 +108,10 @@ export function BookingForm({ today }: { today: string }) {
     setMessage('');
     try {
       const result = await submitBooking(form);
-      if (result) setMessage(result.message);
+      if (result.checkoutUrl) {
+        setCheckout({ checkoutUrl: result.checkoutUrl, reference: result.reference });
+        changeStep(3);
+      } else setMessage(result.message);
     } catch {
       setMessage('暫時無法送出，請稍後重試。');
     } finally {
@@ -117,14 +123,20 @@ export function BookingForm({ today }: { today: string }) {
     <form onSubmit={submit} className="grid gap-3" data-booking-step={step}>
       <div className="flex items-center justify-between gap-2">
         <h2 ref={heading} tabIndex={-1} className="text-lg font-bold outline-none">{title}</h2>
-        {step > 0 && <button type="button" disabled={pending} onClick={goBack} className="min-h-11 shrink-0 text-sm underline">返回上一步</button>}
+        {step > 0 && step < 3 && <button type="button" disabled={pending} onClick={goBack} className="min-h-11 shrink-0 text-sm underline">返回上一步</button>}
       </div>
-      {format === 'live' && <div className="flex items-center gap-2 text-sm" role="status" aria-label={`已記下 ${completed} 組，共 2 組`}>
-        {confirmed.map((saved, index) => (
-          <span key={index} aria-hidden="true" className={`h-2 flex-1 rounded-full transition-colors motion-reduce:transition-none ${saved ? 'bg-[#ffcf39]' : 'bg-[#e1dfe2]'}`} />
+      <ol aria-label="預約進度" className="flex text-center text-xs font-semibold">
+        {progressLabels.map((label, index) => (
+          <li key={label} aria-current={index === currentProgress ? 'step' : undefined} className="relative flex flex-1 flex-col items-center gap-1">
+            {index > 0 && <span aria-hidden className="absolute right-1/2 top-3 h-px w-full bg-[#b4b6be]" />}
+            <span aria-hidden className={`relative grid size-6 place-items-center rounded-full border border-[#a8aab3] ${index <= currentProgress ? 'bg-[#ffe071]' : 'bg-white'}`}>
+              {index < currentProgress ? '✓' : ''}
+            </span>
+            {label}
+          </li>
         ))}
-        <span aria-hidden="true">{completed} / 2</span>
-      </div>}
+      </ol>
+      {format === 'live' && step > 0 && <span role="status" aria-label={`已記下 ${completed} 組，共 2 組`} className="sr-only" />}
       {step === 0 && <>
         <fieldset className="grid gap-2">
           <legend className="mb-2 font-semibold">服務類別</legend>
@@ -152,14 +164,16 @@ export function BookingForm({ today }: { today: string }) {
         )}
         {format === 'live' && candidate === 1 && confirmed[0] && (
           <button type="button" className="min-h-11 rounded-lg bg-[#fff4ca] px-3 text-left text-sm" onClick={() => openCandidate(0)}>
-            <strong>首選已記下</strong> {slots[0].date} {slots[0].time} <span className="underline">修改</span>
+            <strong>✓ 首選已記下</strong> {slots[0].date} {slots[0].time} <span className="underline">修改</span>
           </button>
         )}
         {format === 'live' && candidate === 1 && choosingDate && (
           <p className="text-sm">首選排不開時，匠寵會再跟你確認備用時段。</p>
         )}
         {choosingDate ? (
-          <BookingCalendar key={format + candidate} today={today} selected={format === 'live' ? slot.date : delivery}
+          <div className={format === 'live' && candidate === 1 ? 'overflow-hidden rounded-lg border border-[#f1cd54]' : ''}>
+            {format === 'live' && candidate === 1 && <p className="bg-[#ffe071] py-1 text-center text-sm font-bold">備用日期 · 已記下 1 / 2 組</p>}
+            <BookingCalendar key={format + candidate} today={today} selected={format === 'live' ? slot.date : delivery}
             onSelect={(date) => {
               if (format === 'written') {
                 setDelivery(date);
@@ -170,6 +184,7 @@ export function BookingForm({ today }: { today: string }) {
                 setPickingTime(true);
               }
             }} />
+          </div>
         ) : (
           <>
             <p className="text-sm">已選日期 {slot.date}</p>
@@ -200,17 +215,31 @@ export function BookingForm({ today }: { today: string }) {
         <p className="text-sm">如需改期，請至少於原訂時段前 14 天透過 LINE 聯繫匠寵。</p>
       </>}
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-      {!choosingDate && <div className="grid gap-2">
+      {step === 3 && checkout && (
+        <section className="grid gap-4">
+          <p className="rounded-xl border border-[#ded9cf] bg-[#fff9e7] p-4 font-semibold">
+            {services[categoryIndex].label}／{format === 'live' ? '即時線上' : '非即時圖文'} · NT${services[categoryIndex][format].toLocaleString('zh-TW')}
+          </p>
+          <p role="status">已收到預約申請，待付款。完成付款後，匠寵會透過 LINE 與你確認預約。</p>
+          <p className="text-sm">預約編號 {checkout.reference}</p>
+          <a href={checkout.checkoutUrl} target="_top" onClick={(event) => {
+            if (window.parent === window) return;
+            event.preventDefault();
+            window.parent.postMessage({ type: 'cynthia-booking-checkout', checkoutUrl: checkout.checkoutUrl }, 'https://furmosa.com');
+          }} className="rounded-lg bg-[#ffe071] px-4 py-3 text-center font-semibold">前往 Shopify 結帳</a>
+        </section>
+      )}
+      {step < 3 && !choosingDate && <div className="grid gap-2">
         {step === 2 ? (
           <button type="submit" disabled={pending} className="rounded-lg bg-[#ffe071] px-4 py-3 font-semibold disabled:opacity-60">
-            {pending ? '送出中…' : '送出預約申請'}
+            {pending ? '送出中…' : '前往付款'}
           </button>
         ) : (
           <button type="button" className="rounded-lg bg-[#ffe071] px-4 py-3 font-semibold" onClick={() => step === 0 ? changeStep(1) : confirmTime()}>
             {step === 0 ? '選擇時段' : candidate === 0 ? '記下首選' : '記下備用'}
           </button>
         )}
-        {step === 2 && <p className="text-center text-sm">匠寵會透過 LINE 確認，確認後再付款。</p>}
+        {step === 2 && <p className="text-center text-sm">請先完成付款，匠寵再透過 LINE 與你確認預約。</p>}
       </div>}
     </form>
   );
