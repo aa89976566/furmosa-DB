@@ -11,10 +11,10 @@ export default async function CynthiaBookingPage({ searchParams }: { searchParam
       <header className="space-y-2 max-sm:group-has-[[data-booking-step]:not([data-booking-step='0'])]:sr-only">
         <p className="text-sm font-semibold">Cynthia 西亞</p>
         <h1 className="text-[28px] font-bold leading-tight">動物溝通預約</h1>
-        <p>選擇服務並提供方便的日期，匠寵會透過 LINE 聯繫你確認。</p>
+        <p>選擇服務與時段，完成付款後，匠寵會透過 LINE 聯繫。</p>
       </header>
       {submitted === '1' ? (
-        <p className="rounded-xl border p-5" role="status">已收到預約申請。匠寵會透過 LINE 確認時段，再安排付款。</p>
+        <p className="rounded-xl border p-5" role="status">已收到預約申請。完成付款後，匠寵會透過 LINE 與你確認預約。</p>
       ) : (
         <BookingForm today={today} />
       )}

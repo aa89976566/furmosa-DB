@@ -42,11 +42,16 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
   await expect(page.getByText('如需改期', { exact: false })).toContainText('14 天');
   await page.getByLabel('聯絡人姓名').fill('隔離送單');
   await page.getByLabel('LINE ID').fill(lineId);
-  await page.getByRole('button', { name: '送出預約申請' }).click();
+  await page.getByRole('button', { name: '前往付款' }).click();
   await expect(page.getByRole('status').filter({ hasText: '已收到預約申請' })).toBeVisible();
   const tasks = await db.task.findMany({ where: { taskId: { startsWith: 'BOOK-CYN-' }, description: { contains: lineId } } });
   expect(tasks).toHaveLength(1);
   expect(tasks[0].status).toBe('todo');
+  expect(tasks[0].title).toContain('待付款');
+  const checkout = new URL(await page.getByRole('link', { name: '前往 Shopify 結帳' }).getAttribute('href'));
+  expect(checkout.origin).toBe('https://furmosa.com');
+  expect(checkout.pathname).toBe('/cart/65121055637881:1');
+  expect(JSON.parse(Buffer.from(checkout.searchParams.get('properties'), 'base64url').toString())).toEqual({ '預約編號': tasks[0].taskId });
   expect(tasks[0].description).toContain(date + 'T14:00');
   expect(tasks[0].description).toContain(date + 'T16:30');
 
