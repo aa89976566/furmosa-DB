@@ -29,8 +29,8 @@ export function BookingCalendar({ today, selected, onSelect }: {
         <p className="font-semibold" aria-live="polite">{year} 年 {monthNumber} 月</p>
         <button type="button" className="size-11 rounded-lg border border-[#ded9cf]" onClick={() => changeMonth(1)} aria-label="下個月">›</button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center">
-        {weekdays.map((day) => <span key={day} className="py-2 text-sm text-muted-foreground">{day}</span>)}
+      <div className="grid grid-cols-7 gap-x-1 text-center">
+        {weekdays.map((day) => <span key={day} className="py-1 text-sm text-muted-foreground">{day}</span>)}
         {Array.from({ length: offset }, (_, index) => <span key={`blank-${index}`} />)}
         {Array.from({ length: days }, (_, index) => {
           const day = index + 1;
@@ -39,7 +39,7 @@ export function BookingCalendar({ today, selected, onSelect }: {
           return (
             <button key={date} type="button" aria-label={date} aria-pressed={active} disabled={date < today}
               onClick={() => onSelect(date)}
-              className={`min-h-11 rounded-lg text-sm disabled:opacity-25 ${active ? 'bg-[#ffe071] font-semibold' : 'hover:bg-muted'}`}>
+              className={`min-h-[clamp(32px,6dvh,44px)] rounded-lg text-sm disabled:opacity-25 ${active ? 'bg-[#ffe071] font-semibold' : 'hover:bg-muted'}`}>
               {day}
             </button>
           );
