@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
+import posthog from 'posthog-js';
+
 export default function GlobalError({
   error,
   reset,
@@ -7,6 +10,12 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) {
+      posthog.capture('app_error', { digest: error.digest ?? 'unknown', surface: 'global_error' });
+    }
+  }, [error]);
+
   return (
     <html lang="zh-Hant">
       <body style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 480, margin: '0 auto' }}>

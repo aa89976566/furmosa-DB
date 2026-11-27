@@ -15,6 +15,7 @@ import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { nextSourceOrderNumber, SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
 import { prisma } from '@/lib/prisma';
 import { SHIPPING_FEE_HOME_BLACK_CAT } from '@/lib/shipping-policy';
+import { captureLineShopEvent } from '@/lib/analytics/posthog-server';
 
 export const LINE_SHOP_FREE_SHIPPING_THRESHOLD = 1199;
 export const LINE_SHOP_711_FEE = 60;
@@ -159,6 +160,11 @@ export async function startLineShopCheckout(replyToken: string, lineUserId: stri
     shippingMode: shipping.mode,
     checkoutKey: current.draft.checkoutKey ?? current.session.id,
   };
+  void captureLineShopEvent(lineUserId, 'line_shop_checkout_started', {
+    item_count: current.draft.items.reduce((sum, item) => sum + item.quantity, 0),
+    subtotal: summary.subtotal,
+    shipping_mode: shipping.mode,
+  });
   await save(lineUserId, 'ASK_NAME', draft);
   const shippingText = shipping.mode === 'home'
     ? `商品小計 ${money(summary.subtotal)}，宅配到府，運費 NT$0（已達免運）。`
@@ -300,6 +306,12 @@ export async function handleLineShopMessage(
     }
     try {
       const order = await createLineShopOrder(lineUserId, draft);
+      void captureLineShopEvent(lineUserId, 'line_shop_order_created', {
+        order_id: order.id,
+        item_count: draft.items.reduce((sum, item) => sum + item.quantity, 0),
+        total: order.total,
+        shipping_mode: draft.shippingMode ?? 'unknown',
+      });
       draft.orderId = order.id;
       draft.orderNumber = order.orderNumber;
       await save(lineUserId, 'ASK_LAST5', draft);
@@ -334,6 +346,7 @@ export async function handleLineShopMessage(
         paymentStatus: 'unpaid',
       },
     });
+    void captureLineShopEvent(lineUserId, 'line_shop_payment_reference_submitted', { order_id: draft.orderId });
     await clearLineChatSession(lineUserId);
     await replyLineText(replyToken, `收到末五碼 ${last5}。\n訂單 ${draft.orderNumber} 目前是「待人工核帳」，確認入帳後才會安排出貨。`);
     return true;
