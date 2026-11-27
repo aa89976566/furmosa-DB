@@ -821,7 +821,7 @@ export function buildJarStartMessages(opts: {
         altText: '開始換罐・先開戶',
         theme,
         title: '開始換罐',
-        subtitle: '先幫毛孩開好戶，罐底序號才能記進名下。',
+        subtitle: '到店換罐可先查合作店。開戶後就能登錄序號、查點數。',
         dogFrame: true,
         items: [
           {
@@ -850,23 +850,27 @@ export function buildJarStartMessages(opts: {
     ];
   }
 
-  const name = opts.customerName?.trim();
   const items: MenuButtonItem[] = [
     {
-      label: '輸入序號',
-      action: { type: 'message', text: '輸入序號' },
+      label: '到店換罐｜查看合作店',
+      action: { type: 'message', text: '查看合作店' },
       style: 'primary',
     },
   ];
   const refillUrl = opts.refillLiffUrl?.trim();
   if (refillUrl) {
     items.push({
-      label: '我要換罐',
+      label: '線上預購換罐',
       action: { type: 'uri', uri: refillUrl },
       style: 'secondary',
     });
   }
   items.push(
+    {
+      label: '輸入序號',
+      action: { type: 'message', text: '輸入序號' },
+      style: 'secondary',
+    },
     {
       label: '我的會員',
       action: { type: 'message', text: '我的會員' },
@@ -884,9 +888,7 @@ export function buildJarStartMessages(opts: {
       altText: '開始換罐',
       theme,
       title: '開始換罐',
-      subtitle: name
-        ? `${name} 已開戶，選下一步就好。`
-        : '已開戶，選下一步就好。',
+      subtitle: '帶完整空罐回合作店換購。已有店家確認的美容預約，也可線上預購。',
       dogFrame: true,
       items,
     }),
