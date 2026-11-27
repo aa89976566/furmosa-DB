@@ -65,6 +65,7 @@ import {
   buildShopProductDetailMessages,
   buildShopProductMessages,
 } from '@/lib/line/shop-flex';
+import { captureLineShopEvent } from '@/lib/analytics/posthog-server';
 
 const LINE_SHOP_CATEGORIES = new Set<LineShopCategory>([
   'treats', 'toys', 'gifts', 'lifestyle', 'all',
@@ -185,6 +186,7 @@ export async function handleLinePostback(
   const action = params.get('jd');
 
   if (action === 'shop_home') {
+    void captureLineShopEvent(lineUserId, 'line_shop_home_opened');
     await replyLineMessage(replyToken, buildShopHomeMessages());
     return;
   }
@@ -197,6 +199,7 @@ export async function handleLinePostback(
     const page = action === 'shop_more'
       ? Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1)
       : 1;
+    void captureLineShopEvent(lineUserId, 'line_shop_category_viewed', { category, page });
     await replyShopCategory(replyToken, category, page);
     return;
   }
@@ -210,8 +213,10 @@ export async function handleLinePostback(
         await replyLineMessage(replyToken, buildShopHomeMessages());
         return;
       }
+      void captureLineShopEvent(lineUserId, 'line_shop_product_viewed', { product_id: product.id, variant_id: product.variantId });
       await replyLineMessage(replyToken, buildShopProductDetailMessages(product));
     } catch (err) {
+      void captureLineShopEvent(lineUserId, 'line_shop_error', { stage: 'product_detail' });
       console.error('[line/shop] product detail unavailable', err);
       await replyLineMessage(replyToken, buildShopHomeMessages());
     }
@@ -220,6 +225,7 @@ export async function handleLinePostback(
 
   if (action === 'shop_cart') {
     const draft = await getLineShopCart(lineUserId);
+    void captureLineShopEvent(lineUserId, 'line_shop_cart_viewed', { item_count: draft.items.reduce((sum, item) => sum + item.quantity, 0) });
     await replyLineMessage(replyToken, buildLineShopCartMessages(draft));
     return;
   }
@@ -232,8 +238,10 @@ export async function handleLinePostback(
         await replyLineMessage(replyToken, buildShopHomeMessages());
         return;
       }
+      void captureLineShopEvent(lineUserId, 'line_shop_item_added', { variant_id: variantId, item_count: result.draft.items.reduce((sum, item) => sum + item.quantity, 0) });
       await replyLineMessage(replyToken, buildLineShopCartMessages(result.draft));
     } catch (err) {
+      void captureLineShopEvent(lineUserId, 'line_shop_error', { stage: 'add_item' });
       console.error('[line/shop] add item failed', err);
       await replyLineMessage(replyToken, buildShopFallbackMessages('all'));
     }
