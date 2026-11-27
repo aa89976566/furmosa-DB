@@ -111,7 +111,7 @@ export function BookingForm({ today }: { today: string }) {
       if (result.checkoutUrl) {
         setCheckout({ checkoutUrl: result.checkoutUrl, reference: result.reference });
         changeStep(3);
-      } else setMessage(result.message);
+      } else setMessage(result.message ?? '暫時無法送出，請稍後重試。');
     } catch {
       setMessage('暫時無法送出，請稍後重試。');
     } finally {
