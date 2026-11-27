@@ -2,17 +2,20 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   buildLegacyShopHomeMessages,
+  buildShopFallbackMessages,
   buildShopHomeMessages,
   buildShopProductDetailMessages,
   buildShopProductMessages,
 } from '../shop-flex';
 
 describe('LINE hybrid shopping Flex', () => {
-  it('starts with a text question and postback quick replies', () => {
+  it('starts with a desktop-safe Flex category picker and keeps mobile quick replies', () => {
     const raw = JSON.stringify(buildShopHomeMessages());
     assert.match(raw, /想幫毛孩找哪一種/);
+    assert.match(raw, /"type":"flex"/);
     assert.match(raw, /quickReply/);
     assert.match(raw, /jd=shop_category&amp;category=treats|jd=shop_category&category=treats/);
+    assert.match(raw, /jd=shop_cart/);
     assert.doesNotMatch(raw, /bark-sniff-shopping-hero-v1\.jpg/);
     assert.doesNotMatch(raw, /"type":"message"/);
   });
@@ -40,8 +43,8 @@ describe('LINE hybrid shopping Flex', () => {
     assert.match(raw, /jd=shop_add&amp;variant=11|jd=shop_add&variant=11/);
     assert.doesNotMatch(raw, /cart\/11:1/);
     assert.doesNotMatch(raw, /products\/beef-freeze-dried/);
-    assert.doesNotMatch(raw, /"style":"primary"/);
-    assert.doesNotMatch(raw, /"style":"secondary"/);
+    assert.match(raw, /"style":"primary"/);
+    assert.match(raw, /"style":"secondary"/);
     assert.doesNotMatch(raw, /100g/);
     assert.match(raw, /jd=shop_category&amp;category=treats|jd=shop_category&category=treats/);
     assert.doesNotMatch(raw, /"type":"message"/);
@@ -64,6 +67,16 @@ describe('LINE hybrid shopping Flex', () => {
     assert.doesNotMatch(lastPage, /"contents":\[\]/);
   });
 
+  it('keeps empty and failed categories navigable without quick replies', () => {
+    const empty = JSON.stringify(buildShopProductMessages('toys', []));
+    assert.match(empty, /"type":"flex"/);
+    assert.match(empty, /jd=shop_home/);
+
+    const failed = JSON.stringify(buildShopFallbackMessages('toys'));
+    assert.match(failed, /jd=shop_category&amp;category=toys|jd=shop_category&category=toys/);
+    assert.match(failed, /jd=shop_home/);
+  });
+
   it('opens product information before adding and keeps cart reachable', () => {
     const raw = JSON.stringify(buildShopProductDetailMessages({
       id: '1', title: '雞霸', handle: 'jiba', productType: '寵物零食',
@@ -76,7 +89,7 @@ describe('LINE hybrid shopping Flex', () => {
     assert.match(raw, /jd=shop_add/);
     assert.match(raw, /jd=shop_cart/);
     assert.match(raw, /商品介紹/);
-    assert.match(raw, /繼續逛/);
+    assert.match(raw, /查看購物車/);
     assert.match(raw, /#F8F6EF/);
     assert.match(raw, /#203E54/);
     assert.match(raw, /"layout":"horizontal"/);
