@@ -392,9 +392,10 @@ describe('換罐說明', () => {
     assert.equal(msgs.length, 1);
     const raw = JSON.stringify(msgs);
     assert.match(raw, /開始換罐/);
-    assert.match(raw, /豆豆 已開戶/);
+    assert.match(raw, /帶完整空罐回合作店換購/);
+    assert.match(raw, /"style":"primary"[^}]*"type":"message","label":"到店換罐｜查看合作店","text":"查看合作店"/);
+    assert.match(raw, /"type":"uri","label":"線上預購換罐","uri":"https:\/\/liff\.line\.me\/example"/);
     assert.match(raw, /輸入序號/);
-    assert.match(raw, /我要換罐/);
     assert.match(raw, /我的會員/);
     assert.doesNotMatch(raw, /幫毛孩開戶/);
     assert.doesNotMatch(raw, /立即開戶/);
@@ -410,6 +411,7 @@ describe('換罐說明', () => {
     assert.match(raw, /開始換罐/);
     assert.match(raw, /幫毛孩開戶/);
     assert.match(raw, /jar_reg&next=enter/);
+    assert.match(raw, /"text":"查看合作店"/);
     assert.doesNotMatch(raw, /輸入序號/);
     assert.doesNotMatch(raw, /已開戶/);
   });
