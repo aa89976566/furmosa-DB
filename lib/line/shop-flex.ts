@@ -129,10 +129,49 @@ function cartQuickReply() {
   };
 }
 
+function homeAction(label = '換個分類') {
+  return {
+    type: 'postback' as const,
+    label,
+    data: 'jd=shop_home',
+    displayText: label,
+  };
+}
+
+function cartAction(label = '查看購物車') {
+  return { ...cartQuickReply().action, label };
+}
+
+function categoryButton(category: LineShopCategory, label: string) {
+  return {
+    type: 'button' as const,
+    style: 'secondary' as const,
+    height: 'sm' as const,
+    action: categoryPostback(category, label).action,
+  };
+}
+
 export function buildShopHomeMessages(): LineReplyMessage[] {
   return [{
-    type: 'text',
-    text: '想幫毛孩找哪一種？',
+    type: 'flex',
+    altText: '匠寵線上購物｜選擇商品分類',
+    contents: {
+      type: 'bubble', size: 'mega',
+      styles: { body: { backgroundColor: SITE_PAPER }, footer: { backgroundColor: SITE_PAPER } },
+      body: {
+        type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px',
+        contents: [
+          { type: 'text', text: '想幫毛孩找哪一種？', size: 'xl', weight: 'bold', color: SITE_BLUE, wrap: true },
+          { type: 'text', text: '點一個分類，商品會直接出來。', size: 'sm', color: SITE_MUTED, wrap: true },
+          { type: 'box', layout: 'horizontal', spacing: 'sm', contents: [categoryButton('treats', '零食'), categoryButton('toys', '玩具')] },
+          { type: 'box', layout: 'horizontal', spacing: 'sm', contents: [categoryButton('gifts', '禮品'), categoryButton('lifestyle', '生活用品')] },
+        ],
+      },
+      footer: {
+        type: 'box', layout: 'vertical', paddingAll: '18px', paddingTop: '0px',
+        contents: [{ type: 'button', style: 'link', height: 'sm', action: cartAction() }],
+      },
+    },
     quickReply: { items: [...categoryQuickReplies(), cartQuickReply()] },
   }];
 }
@@ -210,8 +249,19 @@ export function buildShopProductMessages(
   const label = CATEGORY_LABELS[category];
   if (products.length === 0) {
     return [{
-      type: 'text',
-      text: `${label}目前沒有可顯示的商品。你可以先逛全部商品。`,
+      type: 'flex',
+      altText: `${label}目前沒有可顯示的商品`,
+      contents: {
+        type: 'bubble', size: 'kilo',
+        styles: { body: { backgroundColor: PAPER }, footer: { backgroundColor: PAPER } },
+        body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', contents: [
+          { type: 'text', text: `${label}目前沒有可顯示的商品`, size: 'lg', color: BLUE, weight: 'bold', wrap: true },
+          { type: 'text', text: '可以先看看其他分類。', size: 'sm', color: SITE_MUTED, wrap: true },
+        ] },
+        footer: { type: 'box', layout: 'vertical', paddingAll: '18px', paddingTop: '0px', contents: [
+          { type: 'button', style: 'secondary', height: 'sm', action: homeAction() },
+        ] },
+      },
       quickReply: { items: categoryQuickReplies() },
     }];
   }
@@ -222,35 +272,20 @@ export function buildShopProductMessages(
   const visible = products.slice(start, start + pageSize);
   const hasMore = products.length > start + pageSize;
   const cards = visible.map(productBubble);
-  if (hasMore) {
-    cards.push({
-      type: 'bubble',
-      size: 'kilo',
-      styles: {
-        body: { backgroundColor: PAPER },
-        footer: { backgroundColor: PAPER },
-      },
-      body: {
-        type: 'box', layout: 'vertical', spacing: 'md',
-        contents: [
-          { type: 'text', text: `還有更多${label}`, size: 'lg', color: BLUE, weight: 'bold', wrap: true },
-          { type: 'text', text: '繼續在 LINE 裡慢慢看。', size: 'sm', color: '#5B6F86', wrap: true },
-        ],
-      },
-      footer: {
-        type: 'box', layout: 'vertical',
-        contents: [{
-          type: 'button', style: 'link', height: 'sm',
-          action: {
-            type: 'postback',
-            label: '看更多',
-            data: `jd=shop_more&category=${category}&page=${page + 1}`,
-            displayText: `看更多${label}`,
-          },
-        }],
-      },
-    });
-  }
+  cards.push({
+    type: 'bubble', size: 'kilo',
+    styles: { body: { backgroundColor: PAPER }, footer: { backgroundColor: PAPER } },
+    body: { type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px', contents: [
+      { type: 'text', text: hasMore ? `還有更多${label}` : '接下來要去哪裡？', size: 'lg', color: BLUE, weight: 'bold', wrap: true },
+      { type: 'text', text: hasMore ? '繼續看，或先確認購物車。' : '購物車和其他分類都在這裡。', size: 'sm', color: '#5B6F86', wrap: true },
+    ] },
+    footer: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', paddingTop: '0px', contents: [
+      { type: 'button', style: 'primary', color: SITE_BLUE, height: 'sm', action: hasMore ? {
+        type: 'postback', label: '看更多', data: `jd=shop_more&category=${category}&page=${page + 1}`, displayText: `看更多${label}`,
+      } : cartAction() },
+      { type: 'button', style: 'secondary', height: 'sm', action: hasMore ? cartAction() : homeAction() },
+    ] },
+  });
   return [{
     type: 'flex',
     altText: `匠寵線上購物｜${label}`,
@@ -338,11 +373,7 @@ export function buildShopProductDetailMessages(product: LineShopProduct): LineRe
       contents: [
         {
           type: 'button', style: 'secondary', height: 'sm',
-          action: {
-            type: 'postback', label: '繼續逛',
-            data: 'jd=shop_home',
-            displayText: '繼續逛商品',
-          },
+          action: cartAction(),
         },
         {
           type: 'button', style: 'primary', color: SITE_BLUE, height: 'sm',
@@ -363,8 +394,22 @@ export function buildShopProductDetailMessages(product: LineShopProduct): LineRe
 
 export function buildShopFallbackMessages(category: LineShopCategory): LineReplyMessage[] {
   return [{
-    type: 'text',
-    text: `${CATEGORY_LABELS[category]}剛剛讀取比較慢。可以再試一次，或先看看其他分類。`,
+    type: 'flex',
+    altText: `${CATEGORY_LABELS[category]}讀取失敗｜可以再試一次`,
+    contents: {
+      type: 'bubble', size: 'kilo',
+      styles: { body: { backgroundColor: PAPER }, footer: { backgroundColor: PAPER } },
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', contents: [
+        { type: 'text', text: `${CATEGORY_LABELS[category]}剛剛讀取比較慢`, size: 'lg', color: BLUE, weight: 'bold', wrap: true },
+        { type: 'text', text: '可以再試一次，或先看看其他分類。', size: 'sm', color: SITE_MUTED, wrap: true },
+      ] },
+      footer: { type: 'box', layout: 'vertical', spacing: 'sm', paddingAll: '18px', paddingTop: '0px', contents: [
+        { type: 'button', style: 'primary', color: SITE_BLUE, height: 'sm', action: {
+          type: 'postback', label: '再試一次', data: `jd=shop_category&category=${category}`, displayText: `再看一次${CATEGORY_LABELS[category]}`,
+        } },
+        { type: 'button', style: 'secondary', height: 'sm', action: homeAction() },
+      ] },
+    },
     quickReply: { items: [
       {
         type: 'action',
