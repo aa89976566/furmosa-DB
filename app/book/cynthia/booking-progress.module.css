@@ -1,0 +1,33 @@
+.fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #ffd75f;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 250ms ease-out, background-color 250ms ease-out;
+}
+
+.fill[data-state='current'] {
+  transform: scaleX(0.55);
+}
+
+.fill[data-state='complete'] {
+  transform: scaleX(1);
+  background: #eebc38;
+}
+
+.savedSlot {
+  animation: saved-slot-in 250ms ease-out both;
+}
+
+@keyframes saved-slot-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill { transition: none; }
+  .savedSlot { animation: none; }
+}

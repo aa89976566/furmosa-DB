@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { submitBooking } from './actions';
 import { BookingCalendar } from './booking-calendar';
+import styles from './booking-progress.module.css';
 
 const inputClass = 'mt-1 min-h-11 w-full rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-base';
 const halfHourTimes = Array.from({ length: 48 }, (_, index) =>
@@ -31,8 +32,11 @@ export function BookingForm({ today }: { today: string }) {
   const candidateValues = slots.map(({ date, time }) => date && time ? date + 'T' + time : '');
   const slot = slots[candidate];
   const choosingDate = step === 1 && (format === 'written' || !pickingTime);
-  const progressLabels = format === 'live' ? ['首選', '備用', '聯絡', '付款'] : ['交付日期', '聯絡', '付款'];
-  const currentProgress = step === 0 ? -1 : step === 1 ? (format === 'live' ? candidate : 0) : step + progressLabels.length - 4;
+  const progressLabels = format === 'live'
+    ? ['選服務', '選首選', '選備用', '填 LINE', '付款']
+    : ['選服務', '選交付日', '填 LINE', '付款'];
+  const currentProgress = format === 'live' ? (step === 1 ? 1 + candidate : step === 0 ? 0 : step + 1) : step;
+  const currentProgressLabel = step === 3 ? '待付款' : progressLabels[currentProgress];
   const completed = confirmed.filter(Boolean).length;
   const candidateLabel = candidate === 0 ? '首選' : '備用';
   const title = step === 3 ? '完成付款' : step === 0 ? '選擇服務' : step === 2 ? (format === 'live' ? '兩組時段已選好' : '填寫 LINE') :
@@ -127,17 +131,25 @@ export function BookingForm({ today }: { today: string }) {
         <h2 ref={heading} tabIndex={-1} className="text-lg font-bold outline-none">{title}</h2>
         {step > 0 && step < 3 && <button type="button" disabled={pending} onClick={goBack} className="min-h-11 shrink-0 text-sm underline">返回上一步</button>}
       </div>
-      <ol aria-label="預約進度" className="flex text-center text-xs font-semibold">
-        {progressLabels.map((label, index) => (
-          <li key={label} aria-current={index === currentProgress ? 'step' : undefined} className="relative flex flex-1 flex-col items-center gap-1">
-            {index > 0 && <span aria-hidden className="absolute right-1/2 top-3 h-px w-full bg-[#b4b6be]" />}
-            <span aria-hidden className={`relative grid size-6 place-items-center rounded-full border border-[#a8aab3] ${index <= currentProgress ? 'bg-[#ffe071]' : 'bg-white'}`}>
-              {index < currentProgress ? '✓' : ''}
-            </span>
-            {label}
-          </li>
-        ))}
-      </ol>
+      <div className="grid gap-1.5">
+        <p className="text-sm font-semibold" aria-live="polite">
+          第 {currentProgress + 1} 步／共 {progressLabels.length} 步 · {currentProgressLabel}
+        </p>
+        <ol aria-label="預約進度" className="flex gap-1.5 text-center text-xs leading-tight">
+          {progressLabels.map((label, index) => (
+            <li key={label} aria-current={index === currentProgress ? 'step' : undefined}
+              className={`grid min-w-0 flex-1 gap-1 ${index === currentProgress ? 'font-bold' : 'text-[#515469]'}`}>
+              <span aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-[#e9e7e3]">
+                <span className={styles.fill} data-state={index < currentProgress ? 'complete' : index === currentProgress ? 'current' : 'upcoming'} />
+              </span>
+              <span>
+                {index < currentProgress && <><span aria-hidden="true">✓ </span><span className="sr-only">已完成：</span></>}
+                {label}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
       {format === 'live' && step > 0 && <span role="status" aria-label={`已記下 ${completed} 組，共 2 組`} className="sr-only" />}
       {step === 0 && <>
         <fieldset className="grid gap-2">
@@ -165,7 +177,7 @@ export function BookingForm({ today }: { today: string }) {
           <p className="text-sm">選兩組方便的時段，匠寵會優先確認首選。</p>
         )}
         {format === 'live' && candidate === 1 && confirmed[0] && (
-          <button type="button" className="min-h-11 rounded-lg bg-[#fff4ca] px-3 text-left text-sm" onClick={() => openCandidate(0)}>
+          <button type="button" className={`min-h-11 rounded-lg bg-[#fff4ca] px-3 text-left text-sm ${styles.savedSlot}`} onClick={() => openCandidate(0)}>
             <strong>✓ 首選已記下</strong> {slots[0].date} {slots[0].time} <span className="underline">修改</span>
           </button>
         )}
