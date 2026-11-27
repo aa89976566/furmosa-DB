@@ -41,6 +41,7 @@ type OrderView = {
   id: string;
   status: string;
   orderType: string;
+  deliveryMode: string;
   totalAmount: number;
   baseAmount: number;
   extraAmount: number;
@@ -163,9 +164,14 @@ function RefillFlow({
 
         const e = await loadEligibility();
         if (cancelled || !e) return;
-        if (e.openOrders?.[0]?.status === 'paid_waiting_return') {
-          await loadOrder(e.openOrders[0].id);
-          setStep('view');
+        const activeOrder = e.openOrders?.find((candidate) =>
+          ['paid_waiting_return', 'old_container_verified', 'awaiting_extra_payment'].includes(
+            candidate.status,
+          ),
+        );
+        if (activeOrder) {
+          await loadOrder(activeOrder.id);
+          if (!cancelled) setStep('view');
           return;
         }
         if (e.bookings.length === 0) {
@@ -313,14 +319,27 @@ function RefillFlow({
 
   if (step === 'success' || step === 'view') {
     const o = order;
+    const awaitingTopup = o?.status === 'awaiting_extra_payment';
+    const completed = o?.status === 'completed';
+    const needsEmptyJar =
+      o?.deliveryMode === 'exchange' && o.status === 'paid_waiting_return';
+    const statusLabel = awaitingTopup
+      ? '待補差額'
+      : completed
+        ? REFILL_COPY.refillDone
+        : REFILL_COPY.waitingAtStore;
     return (
       <div className="space-y-4">
         <div>
-          <p className="text-lg font-semibold text-foreground">{REFILL_COPY.payDone}</p>
+          <p className="text-lg font-semibold text-foreground">{awaitingTopup || completed ? statusLabel : REFILL_COPY.payDone}</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            {o?.orderType === 'first'
-              ? '這次是第一罐，不用帶空罐｜到店後給店員確認，就能領取新罐'
-              : '記得帶空罐到店裡｜店員確認空罐與交付品項後，就能領取新罐'}
+            {awaitingTopup
+              ? '請依店員提供的方式補差額，確認收款後就能領取。'
+              : completed
+                ? '這筆訂單已完成交付。'
+                : needsEmptyJar
+                  ? '記得帶完整空罐到店，店員驗收後就能領取新罐。'
+                  : '到店後請出示這筆訂單，由店員確認交付。'}
           </p>
         </div>
         {o && (
@@ -328,14 +347,12 @@ function RefillFlow({
             <Row label="毛孩" value={o.petName ?? '—'} />
             <Row label="店家" value={o.merchantName} />
             <Row label="日期" value={`${o.date} ${o.time}`} />
-            <Row label="已付款" value={`NT$${o.totalAmount}`} />
+            <Row label="已付款" value={`NT${awaitingTopup ? o.baseAmount : o.totalAmount}`} />
+            {awaitingTopup && <Row label="待補差額" value={`NT${o.extraAmount}`} />}
             <Row label="訂單編號" value={o.id.slice(0, 8).toUpperCase()} />
-            <Row label="狀態" value={REFILL_COPY.waitingAtStore} />
+            <Row label="狀態" value={statusLabel} />
           </dl>
         )}
-        {o?.orderType !== 'first' ? (
-          <p className="text-sm font-medium text-foreground">{REFILL_COPY.rememberEmptyJar}</p>
-        ) : null}
         <Button
           type="button"
           variant="outline"
