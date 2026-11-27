@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { submitBooking } from './actions';
 import { BookingCalendar } from './booking-calendar';
 
-const inputClass = 'w-full rounded-lg border bg-background px-3 py-2';
+const inputClass = 'mt-1 min-h-11 w-full rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-base';
 const services = [
   { label: '健康在世', live: 1200, written: 1000 },
   { label: '高齡／重症／長照／安寧', live: 1400, written: 1200 },
@@ -47,7 +47,7 @@ export function BookingForm({ today }: { today: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4 rounded-xl border p-5">
+    <form onSubmit={submit} className="grid gap-4">
       <label>服務類別
         <select name="category" className={inputClass} onChange={(event) => setCategoryIndex(event.currentTarget.selectedIndex)}>
           {services.map(({ label }) => <option key={label}>{label}</option>)}
@@ -58,13 +58,13 @@ export function BookingForm({ today }: { today: string }) {
           <option value="live">即時線上</option><option value="written">非即時圖文</option>
         </select>
       </label>
-      <p className="font-semibold">NT$ {services[categoryIndex][format].toLocaleString('zh-TW')}</p>
+      <p className="border-b border-[#ded9cf] pb-4 text-2xl font-bold">NT${services[categoryIndex][format].toLocaleString('zh-TW')}</p>
       {format === 'live' ? <fieldset className="grid min-w-0 gap-3">
         <legend className="mb-2 font-semibold">選擇兩組候選時段</legend>
         <div className="grid grid-cols-2 gap-2">
           {slots.map((slot, index) => (
             <button key={index} type="button" aria-pressed={candidate === index} onClick={() => setCandidate(index)}
-              className={`rounded-lg border p-2 text-sm ${candidate === index ? 'bg-[#FFE16A] text-black' : ''}`}>
+              className={`min-h-11 rounded-lg border border-[#ded9cf] p-2 text-sm font-semibold ${candidate === index ? 'bg-[#ffe071]' : ''}`}>
               {index === 0 ? '第一候選時段' : '第二候選時段'}
               {slot.date && <span className="block">{slot.date} {slot.time}</span>}
             </button>
@@ -75,7 +75,7 @@ export function BookingForm({ today }: { today: string }) {
           <input className={inputClass} type="time" value={activeSlot.time} onChange={(event) => updateSlot('time', event.target.value)} />
         </label>
         {candidate === 0 && activeSlot.date && activeSlot.time && (
-          <button type="button" className="rounded-lg bg-[#FFE16A] p-3 font-semibold text-black" onClick={() => setCandidate(1)}>
+          <button type="button" className="rounded-lg bg-[#ffe071] p-3 font-semibold" onClick={() => setCandidate(1)}>
             選擇第二候選時段
           </button>
         )}
@@ -90,7 +90,7 @@ export function BookingForm({ today }: { today: string }) {
       <input name="website" hidden tabIndex={-1} autoComplete="off" />
       <p className="text-sm">確認預約後，如需改期或取消，請至少於約定時間前一週通知匠寵客服。</p>
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-      <button type="submit" disabled={pending} className="rounded-lg bg-[#FFE16A] px-4 py-3 font-semibold text-black disabled:opacity-60">
+      <button type="submit" disabled={pending} className="rounded-lg bg-[#ffe071] px-4 py-3 font-semibold disabled:opacity-60">
         {pending ? '送出中…' : '送出預約申請'}
       </button>
       <p className="text-center text-sm text-muted-foreground">時段或交付日確認後再付款。</p>
