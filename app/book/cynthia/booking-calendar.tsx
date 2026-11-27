@@ -23,11 +23,11 @@ export function BookingCalendar({ today, selected, onSelect }: {
   }
 
   return (
-    <div className="rounded-xl border bg-background p-3">
+    <div className="min-w-0">
       <div className="mb-2 flex items-center justify-between">
-        <button type="button" className="size-10 rounded-lg border disabled:opacity-30" onClick={() => changeMonth(-1)} disabled={month <= today.slice(0, 7)} aria-label="上個月">‹</button>
+        <button type="button" className="size-11 rounded-lg border border-[#ded9cf] disabled:opacity-30" onClick={() => changeMonth(-1)} disabled={month <= today.slice(0, 7)} aria-label="上個月">‹</button>
         <p className="font-semibold" aria-live="polite">{year} 年 {monthNumber} 月</p>
-        <button type="button" className="size-10 rounded-lg border" onClick={() => changeMonth(1)} aria-label="下個月">›</button>
+        <button type="button" className="size-11 rounded-lg border border-[#ded9cf]" onClick={() => changeMonth(1)} aria-label="下個月">›</button>
       </div>
       <div className="grid grid-cols-7 gap-1 text-center">
         {weekdays.map((day) => <span key={day} className="py-2 text-sm text-muted-foreground">{day}</span>)}
@@ -39,7 +39,7 @@ export function BookingCalendar({ today, selected, onSelect }: {
           return (
             <button key={date} type="button" aria-label={date} aria-pressed={active} disabled={date < today}
               onClick={() => onSelect(date)}
-              className={`min-h-10 rounded-lg text-sm disabled:opacity-25 ${active ? 'bg-[#FFE16A] font-semibold text-black' : 'hover:bg-muted'}`}>
+              className={`min-h-11 rounded-lg text-sm disabled:opacity-25 ${active ? 'bg-[#ffe071] font-semibold' : 'hover:bg-muted'}`}>
               {day}
             </button>
           );
