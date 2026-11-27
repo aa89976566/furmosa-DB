@@ -29,7 +29,7 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
   await page.getByRole('button', { name: date, exact: true }).click();
   await page.getByLabel('開始時間（台灣時間）').fill('14:00');
   await page.getByRole('button', { name: '下一步', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('兩組不同');
+  await expect(page.locator('main').getByRole('alert')).toContainText('兩組不同');
   await page.getByLabel('開始時間（台灣時間）').fill('16:30');
   await page.getByRole('button', { name: '下一步', exact: true }).click();
   await expect(page.getByText('如需改期', { exact: false })).toContainText('14 天');
