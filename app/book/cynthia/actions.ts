@@ -21,14 +21,14 @@ export async function submitBooking(form: FormData) {
   const category = field('category');
   const format = field('format');
   const name = field('name');
-  const email = field('email').toLowerCase();
+  const lineId = field('lineId');
   const first = field('first');
   const second = field('second');
   const delivery = field('delivery');
   if (field('website')) return { message: '請重新整理頁面後再試。' };
   if (
     !categories.has(category) || !name || name.length > 80 ||
-    email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+    !lineId || !/^[a-zA-Z0-9._-]{1,64}$/.test(lineId) ||
     (format !== 'live' && format !== 'written') ||
     (format === 'live' && (!futureDate(first, true) || !futureDate(second, true) || first === second)) ||
     (format === 'written' && !futureDate(delivery, false))
@@ -36,7 +36,7 @@ export async function submitBooking(form: FormData) {
   const method = format === 'live' ? '即時線上' : '非即時圖文';
   const timing = format === 'live' ? '候選時段（台灣時間）：' + first + '、' + second : '期望交付日期：' + delivery;
   const taskId = 'BOOK-CYN-' + createHash('sha256')
-    .update(JSON.stringify([email, category, format, timing])).digest('hex').slice(0, 24);
+    .update(JSON.stringify([lineId.toLowerCase(), category, format, timing])).digest('hex').slice(0, 24);
   try {
     await prisma.task.upsert({
       where: { taskId },
@@ -46,7 +46,7 @@ export async function submitBooking(form: FormData) {
         title: '西亞預約申請｜' + category + '・' + method,
         type: 'customer_service',
         status: 'todo',
-        description: '聯絡人：' + name + '\nEmail：' + email + '\n' + timing,
+        description: '聯絡人：' + name + '\nLINE ID：' + lineId + '\n' + timing,
       },
     });
   } catch {
