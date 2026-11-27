@@ -10,7 +10,7 @@ const variants = new Map([
 ]);
 
 function futureDate(value: string, timed: boolean) {
-  const pattern = timed ? /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/ : /^\d{4}-\d{2}-\d{2}$/;
+  const pattern = timed ? /^\d{4}-\d{2}-\d{2}T\d{2}:(?:00|30)$/ : /^\d{4}-\d{2}-\d{2}$/;
   if (!pattern.test(value)) return false;
   const time = value + (timed ? '' : 'T23:59');
   const localTimestamp = Date.parse(time + 'Z');
@@ -36,7 +36,7 @@ export async function submitBooking(form: FormData) {
     (format !== 'live' && format !== 'written') ||
     (format === 'live' && (!futureDate(first, true) || !futureDate(second, true) || first === second)) ||
     (format === 'written' && !futureDate(delivery, false))
-  ) return { message: '請確認聯絡資料，並填寫未來日期。即時溝通需提供兩個不同時段。' };
+  ) return { message: '請確認聯絡資料，並填寫未來日期。即時溝通需提供兩個不同的時段，時間以 30 分鐘為單位。' };
   const method = format === 'live' ? '即時線上' : '非即時圖文';
   const timing = format === 'live' ? '候選時段（台灣時間）：' + first + '、' + second : '期望交付日期：' + delivery;
   const taskId = 'BOOK-CYN-' + createHash('sha256')

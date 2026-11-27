@@ -6,12 +6,13 @@ const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
 const pad = (value: number) => String(value).padStart(2, '0');
 const dateKey = (year: number, month: number, day: number) => `${year}-${pad(month + 1)}-${pad(day)}`;
 
-export function BookingCalendar({ today, selected, onSelect }: {
+export function BookingCalendar({ today, selected, initialDate, onSelect }: {
   today: string;
   selected: string;
+  initialDate?: string;
   onSelect: (date: string) => void;
 }) {
-  const [month, setMonth] = useState((selected || today).slice(0, 7));
+  const [month, setMonth] = useState((selected || initialDate || today).slice(0, 7));
   const [year, monthNumber] = month.split('-').map(Number);
   const monthIndex = monthNumber - 1;
   const offset = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay();

@@ -5,6 +5,8 @@ import { submitBooking } from './actions';
 import { BookingCalendar } from './booking-calendar';
 
 const inputClass = 'mt-1 min-h-11 w-full rounded-lg border border-[#ded9cf] bg-white px-3 py-2 text-base';
+const halfHourTimes = Array.from({ length: 48 }, (_, index) =>
+  String(Math.floor(index / 2)).padStart(2, '0') + (index % 2 === 0 ? ':00' : ':30'));
 const services = [
   { label: '健康在世', live: 1200, written: 1000 },
   { label: '高齡／重症／長照／安寧', live: 1400, written: 1200 },
@@ -38,7 +40,7 @@ export function BookingForm({ today }: { today: string }) {
 
   useEffect(() => {
     if (step === 0 && !heading.current?.dataset.visited) return;
-    heading.current?.focus();
+    heading.current?.focus({ preventScroll: true });
   }, [step, candidate, pickingTime]);
 
   function changeStep(next: number) {
@@ -171,9 +173,9 @@ export function BookingForm({ today }: { today: string }) {
           <p className="text-sm">首選排不開時，匠寵會再跟你確認備用時段。</p>
         )}
         {choosingDate ? (
-          <div className={format === 'live' && candidate === 1 ? 'overflow-hidden rounded-lg border border-[#f1cd54]' : ''}>
-            {format === 'live' && candidate === 1 && <p className="bg-[#ffe071] py-1 text-center text-sm font-bold">備用日期 · 已記下 1 / 2 組</p>}
-            <BookingCalendar key={format + candidate} today={today} selected={format === 'live' ? slot.date : delivery}
+          <div className={format === 'live' && candidate === 1 ? 'min-w-0 rounded-lg border border-[#f1cd54]' : ''}>
+            {format === 'live' && candidate === 1 && <p className="bg-[#ffe071] py-1 text-center text-sm font-bold">備用日期 · 已記下 {completed} / 2 組</p>}
+            <BookingCalendar key={format + candidate} today={today} initialDate={format === 'live' && candidate === 1 ? slots[0].date : undefined} selected={format === 'live' ? slot.date : delivery}
             onSelect={(date) => {
               if (format === 'written') {
                 setDelivery(date);
@@ -189,8 +191,12 @@ export function BookingForm({ today }: { today: string }) {
           <>
             <p className="text-sm">已選日期 {slot.date}</p>
             <label>開始時間（台灣時間）
-              <input className={inputClass} type="time" value={slot.time}
-                onChange={(event) => updateSlot(candidate, 'time', event.target.value)} />
+              <select className={inputClass} value={slot.time} onChange={(event) => updateSlot(candidate, 'time', event.target.value)}>
+                <option value="">選擇時間</option>
+                {halfHourTimes.map(time => (
+                  <option key={time} value={time} disabled={Date.parse(slot.date + 'T' + time + '+08:00') <= Date.now()}>{time}</option>
+                ))}
+              </select>
             </label>
           </>
         )}
