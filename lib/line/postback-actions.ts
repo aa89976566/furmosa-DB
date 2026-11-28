@@ -233,6 +233,10 @@ export async function handleLinePostback(
         await replyLineMessage(replyToken, buildShopHomeMessages());
         return;
       }
+      if (result.status === 'locked') {
+        await replyLineText(replyToken, `訂單 ${result.draft.orderNumber} 已建立，請先回覆轉帳帳號末 5 碼。購物車沒有變更。`);
+        return;
+      }
       await replyLineMessage(replyToken, buildLineShopCartMessages(result.draft));
     } catch (err) {
       console.error('[line/shop] add item failed', err);
@@ -248,6 +252,10 @@ export async function handleLinePostback(
         ? 'decrement'
         : 'remove';
     const result = await updateLineShopItem(lineUserId, variantId, operation);
+    if (result.status === 'locked') {
+      await replyLineText(replyToken, `訂單 ${result.draft.orderNumber} 已建立，請先回覆轉帳帳號末 5 碼。購物車沒有變更。`);
+      return;
+    }
     await replyLineMessage(replyToken, buildLineShopCartMessages(result.draft));
     return;
   }

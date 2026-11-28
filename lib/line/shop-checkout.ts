@@ -9,7 +9,7 @@ import {
   upsertLineChatSession,
 } from '@/lib/line/chat-session';
 import { findCustomerByLineUserId } from '@/lib/line/bind-customer';
-import { listLineShopProducts } from '@/lib/line/shop-catalog';
+import { listLineShopProducts, type LineShopProduct } from '@/lib/line/shop-catalog';
 import type { LineReplyMessage } from '@/lib/line/reply';
 import { replyLineMessage, replyLineText } from '@/lib/line/reply';
 import { nextSourceOrderNumber, SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
@@ -51,6 +51,62 @@ export function resetLineShopDraftAfterCartEdit(
   delete next.orderNumber;
   delete next.checkoutKey;
   return next;
+}
+
+function sameLineShopCartItems(a: LineShopCartItem[], b: LineShopCartItem[]) {
+  return a.length === b.length && a.every((item, index) =>
+    item.variantId === b[index]?.variantId && item.quantity === b[index]?.quantity);
+}
+
+export function planLineShopCartMutation(
+  step: string,
+  draft: LineShopDraft,
+  variantId: string,
+  operation: LineShopCartOperation,
+) {
+  if (step === 'ASK_LAST5' && draft.orderId && draft.orderNumber) {
+    return { status: 'locked' as const, draft };
+  }
+  const items = updateLineShopCartItems(draft.items, variantId, operation);
+  if (sameLineShopCartItems(draft.items, items)) {
+    return { status: 'unchanged' as const, draft };
+  }
+  return { status: 'updated' as const, draft: resetLineShopDraftAfterCartEdit(draft, items) };
+}
+
+export function addLineShopProductToDraft(
+  draft: LineShopDraft,
+  product: LineShopProduct,
+): LineShopDraft {
+  const exists = draft.items.some((item) => item.variantId === product.variantId);
+  const items = exists
+    ? updateLineShopCartItems(draft.items, product.variantId, 'increment')
+    : [...draft.items, {
+      productId: product.id,
+      title: product.title,
+      variantId: product.variantId,
+      variantTitle: product.variantTitle,
+      price: product.price,
+      quantity: 1,
+      imageUrl: product.imageUrl,
+    }];
+  return sameLineShopCartItems(draft.items, items)
+    ? draft
+    : resetLineShopDraftAfterCartEdit(draft, items);
+}
+
+export function planLineShopProductAddition(
+  step: string,
+  draft: LineShopDraft,
+  product: LineShopProduct,
+) {
+  if (step === 'ASK_LAST5' && draft.orderId && draft.orderNumber) {
+    return { status: 'locked' as const, draft };
+  }
+  const next = addLineShopProductToDraft(draft, product);
+  return sameLineShopCartItems(draft.items, next.items)
+    ? { status: 'unchanged' as const, draft }
+    : { status: 'updated' as const, draft: next };
 }
 
 export function shopCartSubtotal(items: LineShopCartItem[]) {
@@ -123,15 +179,12 @@ export function buildLineShopCartMessages(draft: LineShopDraft): LineReplyMessag
   const shippingLine = summary.shippingMode === 'home'
     ? `目前寄送：宅配到府，運費 NT$0（已達免運）`
     : `目前寄送：7-ELEVEN 取貨，運費 ${money(summary.shippingFee)}\n再買 ${money(summary.freeShippingGap)} → 改宅配到府、免運`;
-  return [{
-    type: 'flex',
-    altText: `購物車 ${draft.items.reduce((sum, item) => sum + item.quantity, 0)} 件｜小計 ${money(summary.subtotal)}`,
-    contents: {
+  const summaryBubble = (itemLines: typeof lines): Record<string, unknown> => ({
       type: 'bubble', size: 'mega',
       styles: { body: { backgroundColor: '#F8F6EF' }, footer: { backgroundColor: '#F8F6EF' } },
       body: { type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px', contents: [
         { type: 'text', text: '購物車', size: 'xl', color: '#203E54', weight: 'bold' },
-        ...lines,
+        ...itemLines,
         { type: 'separator', color: '#DEDBD5' },
         { type: 'text', text: `商品小計 ${money(summary.subtotal)}`, size: 'lg', color: '#203E54', weight: 'bold', wrap: true },
         { type: 'text', text: shippingLine, size: 'sm', color: '#60717D', wrap: true },
@@ -145,12 +198,47 @@ export function buildLineShopCartMessages(draft: LineShopDraft): LineReplyMessag
           type: 'postback', label: '繼續逛', data: 'jd=shop_home', displayText: '繼續逛',
         } },
       ] },
-    },
+    });
+  const itemCount = draft.items.reduce((sum, item) => sum + item.quantity, 0);
+  const altText = `購物車 ${itemCount} 件｜小計 ${money(summary.subtotal)}`;
+  const pageSize = 6;
+  if (lines.length <= pageSize) return [{
+    type: 'flex',
+    altText,
+    contents: summaryBubble(lines),
     quickReply: { items: [
       { type: 'action', action: { type: 'postback', label: '結帳', data: 'jd=shop_checkout', displayText: '我要結帳' } },
       { type: 'action', action: { type: 'postback', label: '繼續逛', data: 'jd=shop_home', displayText: '繼續逛' } },
     ] },
   }];
+
+  const itemBubbles: Record<string, unknown>[] = [];
+  const pageCount = Math.ceil(lines.length / pageSize);
+  for (let page = 0; page < pageCount; page += 1) {
+    itemBubbles.push({
+      type: 'bubble', size: 'mega',
+      styles: { body: { backgroundColor: '#F8F6EF' } },
+      body: { type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px', contents: [
+        { type: 'text', text: `購物車 ${page + 1}/${pageCount}`, size: 'xl', color: '#203E54', weight: 'bold' },
+        ...lines.slice(page * pageSize, (page + 1) * pageSize),
+      ] },
+    });
+  }
+  const bubbles = [...itemBubbles, summaryBubble([])];
+  const messages: LineReplyMessage[] = [];
+  for (let index = 0; index < bubbles.length; index += 4) {
+    const final = index + 4 >= bubbles.length;
+    messages.push({
+      type: 'flex',
+      altText,
+      contents: { type: 'carousel', contents: bubbles.slice(index, index + 4) },
+      ...(final ? { quickReply: { items: [
+        { type: 'action' as const, action: { type: 'postback' as const, label: '結帳', data: 'jd=shop_checkout', displayText: '我要結帳' } },
+        { type: 'action' as const, action: { type: 'postback' as const, label: '繼續逛', data: 'jd=shop_home', displayText: '繼續逛' } },
+      ] } } : {}),
+    });
+  }
+  return messages;
 }
 
 async function save(lineUserId: string, step: ShopStep, draft: LineShopDraft) {
@@ -172,22 +260,24 @@ export async function addLineShopItem(lineUserId: string, variantId: string) {
   const products = await listLineShopProducts('all', { limit: 100 });
   const product = products.find((entry) => entry.variantId === variantId);
   if (!product) return { ok: false as const, error: '這項商品目前無法加入，請重新開啟商品列表。' };
-  const current = await currentShop(lineUserId);
-  const draft: LineShopDraft = current?.draft ?? { items: [] };
-  const existing = draft.items.find((item) => item.variantId === variantId);
-  if (existing) existing.quantity += 1;
-  else draft.items.push({
-    productId: product.id,
-    title: product.title,
-    variantId: product.variantId,
-    variantTitle: product.variantTitle,
-    price: product.price,
-    quantity: 1,
-    imageUrl: product.imageUrl,
+  const next = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`line-shop:${lineUserId}`}, 0))`;
+    const session = await tx.lineChatSession.findUnique({ where: { lineUserId } });
+    const active = session?.flow === 'shop' && isLineSessionRecent(session);
+    const draft = active
+      ? parseLineShopDraft(session.payload)
+      : { items: [] };
+    const result = planLineShopProductAddition(active ? session.step : 'CART', draft, product);
+    if (result.status !== 'updated') return result;
+    const updated = result.draft;
+    await tx.lineChatSession.upsert({
+      where: { lineUserId },
+      create: { lineUserId, flow: 'shop', step: 'CART', payload: JSON.stringify(updated) },
+      update: { flow: 'shop', step: 'CART', payload: JSON.stringify(updated) },
+    });
+    return { status: 'updated' as const, draft: updated };
   });
-  const next = resetLineShopDraftAfterCartEdit(draft, draft.items);
-  await save(lineUserId, 'CART', next);
-  return { ok: true as const, draft: next };
+  return { ok: true as const, ...next };
 }
 
 export async function updateLineShopItem(
@@ -195,14 +285,26 @@ export async function updateLineShopItem(
   variantId: string,
   operation: LineShopCartOperation,
 ) {
-  const current = await currentShop(lineUserId);
-  if (!current) return { ok: false as const, draft: { items: [] } satisfies LineShopDraft };
-  const draft = resetLineShopDraftAfterCartEdit(
-    current.draft,
-    updateLineShopCartItems(current.draft.items, variantId, operation),
-  );
-  await save(lineUserId, 'CART', draft);
-  return { ok: true as const, draft };
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`line-shop:${lineUserId}`}, 0))`;
+    const session = await tx.lineChatSession.findUnique({ where: { lineUserId } });
+    if (!session || session.flow !== 'shop' || !isLineSessionRecent(session)) {
+      return { status: 'missing' as const, draft: { items: [] } satisfies LineShopDraft };
+    }
+    const result = planLineShopCartMutation(
+      session.step,
+      parseLineShopDraft(session.payload),
+      variantId,
+      operation,
+    );
+    if (result.status === 'updated') {
+      await tx.lineChatSession.update({
+        where: { lineUserId },
+        data: { flow: 'shop', step: 'CART', payload: JSON.stringify(result.draft) },
+      });
+    }
+    return result;
+  });
 }
 
 export async function startLineShopCheckout(replyToken: string, lineUserId: string) {
