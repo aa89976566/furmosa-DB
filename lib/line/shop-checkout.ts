@@ -20,6 +20,23 @@ export const LINE_SHOP_FREE_SHIPPING_THRESHOLD = 1199;
 export const LINE_SHOP_711_FEE = 60;
 
 type ShopStep = 'CART' | 'ASK_NAME' | 'ASK_PHONE' | 'ASK_DESTINATION' | 'ASK_LAST5';
+export type LineShopCartOperation = 'increment' | 'decrement' | 'remove';
+
+export function updateLineShopCartItems(
+  items: LineShopCartItem[],
+  variantId: string,
+  operation: LineShopCartOperation,
+): LineShopCartItem[] {
+  if (!items.some((item) => item.variantId === variantId)) return items.map((item) => ({ ...item }));
+  if (operation === 'remove') return items.filter((item) => item.variantId !== variantId).map((item) => ({ ...item }));
+  return items.flatMap((item) => {
+    if (item.variantId !== variantId) return [{ ...item }];
+    const quantity = operation === 'increment'
+      ? Math.min(99, item.quantity + 1)
+      : item.quantity - 1;
+    return quantity > 0 ? [{ ...item, quantity }] : [];
+  });
+}
 
 export function shopCartSubtotal(items: LineShopCartItem[]) {
   return items.reduce((sum, item) => sum + item.price * item.quantity, 0);

@@ -7,7 +7,23 @@ import {
   buildLineShopCartMessages,
   resolveLineShopShipping,
   shopCartSubtotal,
+  updateLineShopCartItems,
 } from '@/lib/line/shop-checkout';
+
+test('LINE shop cart item controls update only the selected variant within bounds', () => {
+  const original = [
+    { productId: 'p1', title: '雞霸', variantId: 'v1', variantTitle: '45g', price: 299, quantity: 2 },
+    { productId: 'p2', title: '牛肉凍乾', variantId: 'v2', variantTitle: '30g', price: 195, quantity: 1 },
+  ];
+
+  assert.deepEqual(updateLineShopCartItems(original, 'v1', 'increment').map((item) => item.quantity), [3, 1]);
+  assert.deepEqual(updateLineShopCartItems(original, 'v1', 'decrement').map((item) => item.quantity), [1, 1]);
+  assert.deepEqual(updateLineShopCartItems(original, 'v2', 'decrement').map((item) => item.variantId), ['v1']);
+  assert.deepEqual(updateLineShopCartItems(original, 'v1', 'remove').map((item) => item.variantId), ['v2']);
+  assert.deepEqual(updateLineShopCartItems(original, 'missing', 'remove'), original);
+  assert.equal(updateLineShopCartItems([{ ...original[0], quantity: 99 }], 'v1', 'increment')[0].quantity, 99);
+  assert.deepEqual(original.map((item) => item.quantity), [2, 1]);
+});
 
 test('LINE shop subtotal sums quantity', () => {
   assert.equal(shopCartSubtotal([{ productId: 'p', title: '雞霸', variantId: 'v', variantTitle: '單一規格', price: 299, quantity: 2 }]), 598);
