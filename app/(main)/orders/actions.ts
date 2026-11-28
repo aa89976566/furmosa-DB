@@ -31,6 +31,7 @@ import { guardLegacyOrderTx } from '@/lib/shopify/legacy-gate';
 import { nextSourceOrderNumber, SOURCE_ORDER_PREFIX } from '@/lib/orders/source-order-number';
 import type { Prisma } from '@prisma/client';
 import { isOrderCancellationReasonCode, orderCancellationReasonLabel } from '@/lib/orders/cancellation-reasons';
+import { planLineShopPaymentHandoff } from '@/lib/orders/line-shop-handoff';
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');
 
@@ -539,7 +540,39 @@ export async function updateOrderPaymentStatus(formData: FormData) {
   }
   await prisma.$transaction(async tx => {
     await guardLegacyOrderTx(tx, orderId);
-    await tx.order.update({ where: { id: orderId }, data: { paymentStatus: next } });
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      include: {
+        customer: { select: { name: true, phone: true } },
+        items: {
+          select: {
+            productId: true,
+            productName: true,
+            sku: true,
+            quantity: true,
+            weightGrams: true,
+            variantKey: true,
+            unit: true,
+          },
+        },
+        shipments: { select: { status: true } },
+      },
+    });
+    if (!order) throw new Error('訂單不存在');
+    const plan = planLineShopPaymentHandoff(order, next);
+    await tx.order.update({ where: { id: orderId }, data: plan.orderData });
+    if (plan.shipment) {
+      const shipmentNumber = await nextShipmentNumber(tx);
+      const { items, ...shipment } = plan.shipment;
+      await tx.shipment.create({
+        data: {
+          ...shipment,
+          shipmentNumber,
+          orderId,
+          items: { create: items },
+        },
+      });
+    }
   });
   await revalidateOrderPaths(orderId);
 }
