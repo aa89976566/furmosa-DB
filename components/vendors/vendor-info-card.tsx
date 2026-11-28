@@ -34,15 +34,9 @@ export function VendorInfoCard({ vendor }: { vendor: VendorInfo }) {
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              {purchaseUrl ? (
-                <a href={purchaseUrl} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-4">
-                  {vendor.name}
-                </a>
-              ) : (
-                <Link href={`/vendors/${vendor.id}`} className="font-medium underline underline-offset-4">
-                  {vendor.name}
-                </Link>
-              )}
+              <Link href={`/vendors/${vendor.id}`} className="font-medium underline underline-offset-4">
+                {vendor.name}
+              </Link>
               <span className="font-mono text-xs text-muted-foreground">{vendor.vendorId}</span>
               <Badge variant={vendor.status === 'active' ? 'success' : 'muted'}>
                 {vendor.status === 'active' ? '啟用' : '停用'}
@@ -84,7 +78,12 @@ export function VendorInfoCard({ vendor }: { vendor: VendorInfo }) {
               {vendor.notes?.trim() ? vendor.notes : '尚無備註'}
             </p>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            {purchaseUrl ? (
+              <Button asChild size="sm" variant="outline">
+                <a href={purchaseUrl} target="_blank" rel="noopener noreferrer">開啟採購頁</a>
+              </Button>
+            ) : null}
             <Button asChild size="sm" variant="outline">
               <Link href={`/vendors/${vendor.id}`}>開啟廠商完整頁面</Link>
             </Button>
