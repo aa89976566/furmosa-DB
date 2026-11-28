@@ -19,9 +19,10 @@ export const EXCLUSIVE_STOCK_TARGETS: readonly StockTarget[] = [
 
 /** Serial bounded batch: each SKU has its own audit, reservation snapshot and write gate. */
 export async function runExclusiveStockBatch(db: PrismaClient, mode: InventorySyncMode,
-  env: NodeJS.ProcessEnv = process.env, run = runExclusiveInventorySync) {
+  env: NodeJS.ProcessEnv = process.env, run = runExclusiveInventorySync, signal?: AbortSignal) {
   const results: { sku: string; status: 'verified' | 'inspected' | 'blocked' }[] = [];
   for (const target of EXCLUSIVE_STOCK_TARGETS) {
+    if (signal?.aborted) break;
     try {
       await run(db, mode, target, env);
       results.push({ sku: target.sku, status: mode === 'apply' ? 'verified' : 'inspected' });
