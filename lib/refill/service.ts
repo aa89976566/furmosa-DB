@@ -11,6 +11,7 @@ import { isBookableForRefill } from '@/lib/refill/eligibility';
 import { RefillError } from '@/lib/refill/errors';
 import { writeRefillAudit } from '@/lib/refill/audit';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
+import { getRefillPreorderCatalog } from '@/lib/refill/preorder-catalog';
 import { assertTransition } from '@/lib/refill/transitions';
 
 /**
@@ -411,25 +412,26 @@ export async function getRefillEligibility(input: {
 
 export async function createRefillOrder(input: {
   customerId: string;
-  appointmentId: string;
+  appointmentId?: string | null;
+  flavourId?: string | null;
   /** 前端傳入金額一律忽略 */
   clientAmount?: number;
   idempotencyKey?: string | null;
 }) {
-  const appointment = await prisma.appointment.findUnique({
+  const appointment = input.appointmentId ? await prisma.appointment.findUnique({
     where: { id: input.appointmentId },
     include: { merchant: { select: { id: true, name: true } } },
-  });
-  if (!appointment || appointment.customerId !== input.customerId) {
+  }) : null;
+  if (input.appointmentId && (!appointment || appointment.customerId !== input.customerId)) {
     throw new RefillError('目前找不到可換罐的預約。', 'NO_BOOKING', 404);
   }
 
-  const bookOk = isBookableForRefill({
+  const bookOk = appointment ? isBookableForRefill({
     status: appointment.status,
     startsAt: appointment.startsAt,
     merchantId: appointment.merchantId,
-  });
-  if (!bookOk.ok) {
+  }) : null;
+  if (bookOk && !bookOk.ok) {
     throw new RefillError(
       bookOk.code === 'BOOKING_NOT_CONFIRMED'
         ? '這筆預約尚未確認，確認後才能付款。'
@@ -439,14 +441,21 @@ export async function createRefillOrder(input: {
     );
   }
 
-  const idem =
-    input.idempotencyKey?.trim() ||
-    `refill:${input.customerId}:${input.appointmentId}`;
+  const requestKey = input.idempotencyKey?.trim();
+  if (!appointment && (!input.flavourId || !requestKey || requestKey.length > 128)) {
+    throw new RefillError('請選擇預購口味並重新確認。', 'INVALID_PREORDER', 400);
+  }
+  const idem = appointment
+    ? `refill:${input.customerId}:${requestKey || appointment.id}`
+    : `refill-preorder:${input.customerId}:${requestKey}`;
 
   const existingByKey = await prisma.refillOrder.findUnique({
     where: { idempotencyKey: idem },
   });
   if (existingByKey) {
+    if (existingByKey.customerId !== input.customerId || existingByKey.appointmentId !== (appointment?.id ?? null) || existingByKey.requestedFlavourId !== (appointment ? null : input.flavourId)) {
+      throw new RefillError('訂單內容已變更，請重新確認。', 'ORDER_REQUEST_CHANGED', 409);
+    }
     const refreshed = await refreshUnpaidOrderQualification(
       existingByKey.id,
       input.customerId,
@@ -454,18 +463,25 @@ export async function createRefillOrder(input: {
     return { order: refreshed ?? existingByKey, reused: true as const };
   }
 
-  const active = await prisma.refillOrder.findFirst({
+  const active = appointment ? await prisma.refillOrder.findFirst({
     where: {
-      appointmentId: input.appointmentId,
+      customerId: input.customerId,
+      appointmentId: appointment.id,
       status: { in: [...REFILL_ACTIVE_STATUSES] },
     },
-  });
+  }) : null;
   if (active) {
     const refreshed = await refreshUnpaidOrderQualification(
       active.id,
       input.customerId,
     );
     return { order: refreshed ?? active, reused: true as const };
+  }
+
+  const catalog = appointment ? null : await getRefillPreorderCatalog(input.customerId);
+  const merchantId = appointment?.merchantId ?? catalog?.merchant.id;
+  if (!merchantId || (catalog && !catalog.flavours.some((flavour) => flavour.id === input.flavourId))) {
+    throw new RefillError('這個口味目前無法預購，請重新選擇。', 'INSUFFICIENT_STOCK', 409);
   }
 
   const customer = await prisma.customer.findUnique({
@@ -479,9 +495,10 @@ export async function createRefillOrder(input: {
       let created = await tx.refillOrder.create({
         data: {
           customerId: input.customerId,
-          appointmentId: appointment.id,
-          merchantId: appointment.merchantId,
-          petName: appointment.petName ?? customer?.petName ?? null,
+          appointmentId: appointment?.id ?? null,
+          requestedFlavourId: appointment ? null : input.flavourId,
+          merchantId,
+          petName: appointment?.petName ?? customer?.petName ?? null,
           orderType: 'first',
           baseAmount: firstAmounts.baseAmount,
           extraAmount: firstAmounts.extraAmount,
@@ -518,7 +535,7 @@ export async function createRefillOrder(input: {
         action: 'order_created',
         actorType: 'customer',
         actorId: input.customerId,
-        merchantId: appointment.merchantId,
+        merchantId,
         detail: {
           orderType,
           totalAmount: amounts.totalAmount,
@@ -532,7 +549,7 @@ export async function createRefillOrder(input: {
   } catch (e) {
     // unique idempotency race
     const again = await prisma.refillOrder.findUnique({ where: { idempotencyKey: idem } });
-    if (again) return { order: again, reused: true as const };
+    if (again && again.customerId === input.customerId && again.appointmentId === (appointment?.id ?? null) && again.requestedFlavourId === (appointment ? null : input.flavourId)) return { order: again, reused: true as const };
     throw e;
   }
 }
