@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -22,21 +22,21 @@ type VendorInfo = {
 
 export function VendorInfoCard({ vendor }: { vendor: VendorInfo }) {
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
+  const purchaseUrl = vendor.notes?.match(/(?:^|\n)採購連結[：:]\s*(https?:\/\/[^\s]+)/)?.[1];
 
   return (
     <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
-      <button
-        type="button"
-        onClick={() => setExpanded((open) => !open)}
-        className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left transition hover:bg-muted/30"
-      >
+      <div className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
             <Building2 className="h-4 w-4" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{vendor.name}</span>
+              <Link href={`/vendors/${vendor.id}`} className="font-medium underline underline-offset-4">
+                {vendor.name}
+              </Link>
               <span className="font-mono text-xs text-muted-foreground">{vendor.vendorId}</span>
               <Badge variant={vendor.status === 'active' ? 'success' : 'muted'}>
                 {vendor.status === 'active' ? '啟用' : '停用'}
@@ -47,16 +47,23 @@ export function VendorInfoCard({ vendor }: { vendor: VendorInfo }) {
             </p>
           </div>
         </div>
-        <ChevronDown
-          className={cn(
-            'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
-            expanded && 'rotate-180',
-          )}
-        />
-      </button>
+        <button
+          type="button"
+          aria-label="廠商詳細資料"
+          aria-expanded={expanded}
+          aria-controls={detailsId}
+          onClick={() => setExpanded((open) => !open)}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-muted"
+        >
+          <ChevronDown
+            aria-hidden="true"
+            className={cn('h-4 w-4 text-muted-foreground transition-transform', expanded && 'rotate-180')}
+          />
+        </button>
+      </div>
 
       {expanded ? (
-        <div className="border-t bg-muted/10 px-4 py-4">
+        <div id={detailsId} className="border-t bg-muted/10 px-4 py-4">
           <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
             <DetailRow label="聯絡人" value={vendor.contactName ?? '-'} />
             <DetailRow label="電話" value={vendor.phone ?? '-'} />
@@ -71,7 +78,12 @@ export function VendorInfoCard({ vendor }: { vendor: VendorInfo }) {
               {vendor.notes?.trim() ? vendor.notes : '尚無備註'}
             </p>
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-wrap justify-end gap-2">
+            {purchaseUrl ? (
+              <Button asChild size="sm" variant="outline">
+                <a href={purchaseUrl} target="_blank" rel="noopener noreferrer">開啟採購頁</a>
+              </Button>
+            ) : null}
             <Button asChild size="sm" variant="outline">
               <Link href={`/vendors/${vendor.id}`}>開啟廠商完整頁面</Link>
             </Button>
