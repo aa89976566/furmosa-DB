@@ -578,7 +578,7 @@ export function serializeOrder(order: {
     petName: string | null;
     status: string;
     serviceName: string;
-  };
+  } | null;
   payments?: { id: string; purpose: string; amount: number; status: string; merchantTradeNo: string }[];
 }) {
   return {
@@ -589,14 +589,14 @@ export function serializeOrder(order: {
     baseAmount: order.baseAmount,
     extraAmount: order.extraAmount,
     totalAmount: order.totalAmount,
-    petName: order.petName ?? order.appointment.petName,
+    petName: order.petName ?? order.appointment?.petName ?? null,
     merchantId: order.merchant.id,
     merchantName: order.merchant.name,
     merchantCode: order.merchant.merchantId,
-    appointmentId: order.appointment.id,
-    date: formatLocalDate(order.appointment.startsAt),
-    time: formatLocalTime(order.appointment.startsAt),
-    serviceName: order.appointment.serviceName,
+    appointmentId: order.appointment?.id ?? null,
+    date: order.appointment ? formatLocalDate(order.appointment.startsAt) : '',
+    time: order.appointment ? formatLocalTime(order.appointment.startsAt) : '',
+    serviceName: order.appointment?.serviceName ?? '',
     oldContainerSerial: order.oldContainerSerial,
     newContainerSerial: order.newContainerSerial,
     missingContainerNote: order.missingContainerNote,
