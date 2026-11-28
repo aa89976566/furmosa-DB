@@ -270,6 +270,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ id: s
             </p>
             {product.vendor ? (
               <VendorInfoCard
+                productNotes={product.notes}
                 vendor={{
                   id: product.vendor.id,
                   vendorId: product.vendor.vendorId,
