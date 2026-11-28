@@ -49,17 +49,28 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
   await expect(page.getByText('如需改期', { exact: false })).toContainText('14 天');
   await page.getByLabel('聯絡人姓名').fill('隔離送單');
   await page.getByLabel('LINE ID').fill(lineId);
-  await page.getByRole('button', { name: '前往付款' }).click();
-  await expect(page.getByText('第 5 步／共 5 步 · 待付款')).toBeVisible();
+  await page.getByRole('button', { name: '確認預約資料' }).click();
+  await expect(page.getByText('第 5 步／共 5 步 · 加入購物袋')).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: '已收到預約申請' })).toBeVisible();
   const tasks = await db.task.findMany({ where: { taskId: { startsWith: 'BOOK-CYN-' }, description: { contains: lineId } } });
   expect(tasks).toHaveLength(1);
   expect(tasks[0].status).toBe('todo');
   expect(tasks[0].title).toContain('待付款');
-  const checkout = new URL(await page.getByRole('link', { name: '前往 Shopify 結帳' }).getAttribute('href'));
-  expect(checkout.origin).toBe('https://furmosa.com');
-  expect(checkout.pathname).toBe('/cart/65121055637881:1');
-  expect(JSON.parse(Buffer.from(checkout.searchParams.get('properties'), 'base64url').toString())).toEqual({ '預約編號': tasks[0].taskId });
+  const cartUrl = 'https://furmosa.com/cart/add';
+  // Capture the real form submission without navigating to the live storefront in CI.
+  await page.route(cartUrl, route => route.abort('aborted'));
+  const cartRequest = page.waitForRequest(request => request.url() === cartUrl && request.method() === 'POST');
+  await page.getByRole('button', { name: '加入購物袋', exact: true }).click();
+  const fields = new URLSearchParams((await cartRequest).postData());
+  expect(fields.get('id')).toBe('65121055637881');
+  expect(fields.get('quantity')).toBe('1');
+  expect(fields.get('return_to')).toBe('/cart');
+  expect(fields.get('properties[預約編號]')).toBe(tasks[0].taskId);
+  expect(fields.get('properties[首選時段]')).toBe(date + ' 14:00');
+  expect(fields.get('properties[備用時段]')).toBe(date + ' 16:30');
+  expect(fields.get('properties[預約狀態]')).toBe('待付款，時段待確認');
+  expect(fields.has('lineId')).toBe(false);
+  expect(fields.has('name')).toBe(false);
   expect(tasks[0].description).toContain(date + 'T14:00');
   expect(tasks[0].description).toContain(date + 'T16:30');
 

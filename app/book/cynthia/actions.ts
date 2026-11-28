@@ -56,9 +56,18 @@ export async function submitBooking(form: FormData) {
   } catch {
     return { message: '暫時無法送出，請稍後重試。' };
   }
-  const checkout = new URL('https://furmosa.com/cart/' + service[format] + ':1');
+  const variantId = service[format];
   const properties = { '預約編號': taskId };
-  checkout.searchParams.set('properties', Buffer.from(JSON.stringify(properties)).toString('base64url'));
-  return { checkoutUrl: checkout.toString(), reference: taskId };
+  return {
+    reference: taskId,
+    variantId,
+    cartProperties: {
+      ...properties,
+      ...(format === 'live'
+        ? { 首選時段: first.replace('T', ' '), 備用時段: second.replace('T', ' ') }
+        : { 期望交付日: delivery }),
+      預約狀態: '待付款，時段待確認',
+    },
+  };
 
 }
