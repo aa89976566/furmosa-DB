@@ -38,5 +38,5 @@ export async function getRefillPreorderCatalog(customerId: string) {
     orderBy: { flavourId: 'asc' },
   });
 
-  return { merchant, flavours: stocks.map(({ flavour }) => flavour) };
+  return { merchant, storeId: store.id, flavours: stocks.map(({ flavour }) => flavour) };
 }
