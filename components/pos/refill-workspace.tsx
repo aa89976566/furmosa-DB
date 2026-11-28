@@ -78,7 +78,7 @@ function DeliveryWorkspace({ dashboard }: { dashboard: MerchantRefillDashboard }
   }
 
   async function handleMissingJar(choice: "keep" | "topup") {
-    if (!selected) return;
+    if (!selected || submitting) return;
     setSubmitting(true);
     setMessage(null);
     try {
@@ -89,7 +89,7 @@ function DeliveryWorkspace({ dashboard }: { dashboard: MerchantRefillDashboard }
       });
       const result = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !result.ok) throw new Error(result.error || "處理失敗，請重新整理後再試。");
-      setMessage(choice === "keep" ? "已保留訂單，客人下次帶空罐再領取。" : "已建立 NT$30 補差額，請客人回官方 LINE 完成付款。");
+      setMessage(choice === "keep" ? "已保留訂單，客人下次帶空罐再領取。" : "原單已標記待補 NT$30，款項確認後才能交付。");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "處理失敗，請稍後再試。");
