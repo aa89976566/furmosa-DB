@@ -36,6 +36,7 @@ export function buildEcpayAioCheckout(input: {
   tradeDesc?: string;
   clientBackUrl?: string;
   customField1?: string;
+  tradeDate?: Date;
 }): EcpayCheckoutForm {
   // Fail-closed：讀取 merchant config／產生 CheckMac／form／付款 URL 之前先拒絕。
   if (!isEcpayExternalEffectsAllowed()) {
@@ -46,7 +47,7 @@ export function buildEcpayAioCheckout(input: {
   const fields: Record<string, string | number> = {
     MerchantID: cfg.merchantId,
     MerchantTradeNo: input.merchantTradeNo,
-    MerchantTradeDate: formatTradeDate(),
+    MerchantTradeDate: formatTradeDate(input.tradeDate),
     PaymentType: 'aio',
     TotalAmount: input.amount,
     TradeDesc: input.tradeDesc ?? 'FurmosaRefill',
