@@ -491,12 +491,36 @@ export async function createRefillOrder(input: {
 
   try {
     const order = await prisma.$transaction(async (tx) => {
+      const requestedFlavourId = catalog ? input.flavourId : null;
+      if (catalog && requestedFlavourId) {
+        // Serialize concurrent preorders for the same pickup stock row.
+        const locked = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "merchant_refill_stocks"
+          WHERE "store_id" = ${catalog.storeId} AND "flavour_id" = ${requestedFlavourId}
+          FOR UPDATE
+        `;
+        const stock = locked[0] ? await tx.merchantRefillStock.findUnique({
+          where: { id: locked[0].id },
+          select: { quantity: true, isAvailable: true, flavour: { select: { isActive: true } } },
+        }) : null;
+        const reserved = await tx.refillOrder.count({
+          where: {
+            merchantId,
+            appointmentId: null,
+            requestedFlavourId,
+            status: { in: [...REFILL_ACTIVE_STATUSES, 'payment_failed'] },
+          },
+        });
+        if (!stock?.isAvailable || !stock.flavour.isActive || reserved >= stock.quantity) {
+          throw new RefillError('這個口味目前已預訂完，請重新選擇。', 'INSUFFICIENT_STOCK', 409);
+        }
+      }
       const firstAmounts = amountsForOrderType('first');
       let created = await tx.refillOrder.create({
         data: {
           customerId: input.customerId,
           appointmentId: appointment?.id ?? null,
-          requestedFlavourId: appointment ? null : input.flavourId,
+          requestedFlavourId,
           merchantId,
           petName: appointment?.petName ?? customer?.petName ?? null,
           orderType: 'first',
