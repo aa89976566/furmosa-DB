@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { Prisma } from '@prisma/client';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -8,14 +8,16 @@ import {
 } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { Button } from '@/components/ui/button';
-import { omsNextActionLabel } from '@/lib/orders/oms';
+import { omsNextActionLabel, parseOmsIssues } from '@/lib/orders/oms';
 import { taiwanToday } from '@/lib/orders/oms-workbench';
-import { getOrderWorkState } from '@/lib/orders/order-work-state';
+import { orderWorkWhere, workbenchVisibleWhere } from '@/lib/orders/oms-workbench';
+import { getShipmentQueueCounts } from '@/lib/hot-path-reads';
+import { activeShipmentQueueWhere } from '@/lib/shipment-queue-filters';
 import { snapshotView } from '@/lib/shopify/snapshot-view';
 import { formatCurrency } from '@/lib/format';
 import { orderSourceLabel, paymentStatusLabel } from '@/lib/labels';
 import { taipeiTodayRange } from '@/lib/taipei-date';
-import { countReviewInbox } from '@/lib/reviews/inbox';
+import { countReviewInbox, reviewInboxTotal } from '@/lib/reviews/inbox';
 import { loadDashboardProcurement } from '@/lib/inventory/load-dashboard-procurement';
 import { InventoryActionBoard } from '@/components/dashboard/inventory-action-board';
 import { DashboardJarWeekActivity } from '@/components/dashboard/dashboard-jar-week-activity';
@@ -25,174 +27,140 @@ type WorkRow = {
   id: string; orderNumber: string; source: string; total: number; paymentStatus: string;
   shippingMethod: string; cvsStoreName: string | null; recipient: string; action: string;
   items: { productName: string }[];
-  workState: 'ACTION_REQUIRED' | 'WAITING' | 'DONE';
+  reason: string;
+  missingMapping: boolean;
 };
 
-export async function OmsDashboard() {
+export async function OmsDashboard({ selectedId }: { selectedId?: string }) {
   const today = taiwanToday();
   const { end: endOfToday } = taipeiTodayRange();
-  const [orders, reviewedToday, fulfilledToday, reviewCounts, procurement, jarWeekActivity] = await Promise.all([
+  const orderSelect = {
+    id: true, orderNumber: true, source: true, total: true, paymentStatus: true,
+    shippingMethod: true, cvsStoreName: true, omsStatus: true, omsIssueFlags: true,
+    shopifySnapshot: true, customer: { select: { name: true } },
+    items: { take: 1, select: { productName: true } },
+  } as const;
+  const orderScope = workbenchVisibleWhere;
+  const waitingWhere = { AND: [orderScope, orderWorkWhere('waiting')] };
+  const [orders, waitingOrders, waitingCount, reviews, shipments, procurement] = await Promise.allSettled([
     prisma.order.findMany({
-      where: { deletedAt: null, omsStatus: { in: ['NEW', 'REVIEW', 'READY', 'FULFILLMENT_PENDING'] } },
-      orderBy: [{ orderedAt: 'asc' }, { id: 'asc' }], take: 30,
-      select: {
-        id: true, orderNumber: true, source: true, total: true, paymentStatus: true,
-        shippingMethod: true, cvsStoreName: true, omsStatus: true, omsIssueFlags: true,
-        shopifySnapshot: true, customer: { select: { name: true } },
-        items: { take: 1, select: { productName: true } },
-      },
+      where: { AND: [orderScope, orderWorkWhere('now')] },
+      orderBy: [{ orderedAt: 'asc' }, { id: 'asc' }],
+      take: 8,
+      select: orderSelect,
     }),
-    prisma.order.count({ where: { deletedAt: null, omsReviewedAt: today } }),
-    prisma.order.count({ where: { deletedAt: null, omsStatus: 'FULFILLED', updatedAt: today } }),
+    prisma.order.findMany({
+      where: waitingWhere, orderBy: [{ orderedAt: 'asc' }, { id: 'asc' }], take: 5, select: orderSelect,
+    }),
+    prisma.order.count({ where: waitingWhere }),
     countReviewInbox(),
+    getShipmentQueueCounts({ ...activeShipmentQueueWhere, status: { in: ['pending', 'packed', 'shipped', 'delivered'] } }),
     loadDashboardProcurement(),
-    loadJarWeekActivity(),
   ]);
 
-  const { reorderAlerts } = procurement;
-  const duePurchaseOrders = procurement.purchases.filter(order => order.remindFromDate <= endOfToday);
-  const duePurchaseOrderCount = duePurchaseOrders.length;
-
-  const rows: WorkRow[] = orders.map((order) => {
-    const snapshot = snapshotView(order.shopifySnapshot);
+  function toRow(order: Prisma.OrderGetPayload<{ select: typeof orderSelect }>): WorkRow {
+    const issues = parseOmsIssues(order.omsIssueFlags) ?? [];
+    const issue = issues.find(item => item.severity === 'blocking' && item.code !== 'PAYMENT_PENDING') ?? issues[0];
     return {
       id: order.id, orderNumber: order.orderNumber, source: order.source, total: order.total,
       paymentStatus: order.paymentStatus, shippingMethod: order.shippingMethod,
       cvsStoreName: order.cvsStoreName, items: order.items,
-      recipient: order.customer?.name || snapshot?.recipient || '收件人待確認',
+      recipient: order.customer?.name || snapshotView(order.shopifySnapshot)?.recipient || '收件人待確認',
       action: omsNextActionLabel(order.omsStatus, order.omsIssueFlags),
-      workState: getOrderWorkState({ omsStatus: order.omsStatus, paymentStatus: order.paymentStatus }),
+      reason: issue?.message ?? '訂單待確認',
+      missingMapping: issue?.code === 'PRODUCT_UNMAPPED',
     };
-  });
-  const now = rows.filter((row) => row.workState === 'ACTION_REQUIRED');
-  const waiting = rows.filter((row) => row.workState === 'WAITING');
-  const completedSteps = reviewedToday + fulfilledToday;
-  const reviewActionCount = reviewCounts.ugc + reviewCounts.restock;
-  const inventoryActionCount = reorderAlerts.orderNow.length + reorderAlerts.stocktake.length;
-  const actionCount = now.length + duePurchaseOrderCount + reviewActionCount + inventoryActionCount + procurement.merchantStockCount + procurement.shipmentAudit.missing.length;
-  const first = now[0];
-  const primaryHref = procurement.shipmentAudit.missing[0]
-    ? `/shipments/${procurement.shipmentAudit.missing[0].id}`
-    : duePurchaseOrders[0]
-    ? `/inventory/purchase-orders/${duePurchaseOrders[0].id}`
-    : reorderAlerts.orderNow.length > 0
-      ? reorderAlerts.orderNow[0].unit === 'g' ? '/inventory/purchase-orders/new' : `/products/${reorderAlerts.orderNow[0].id}`
-      : reorderAlerts.stocktake.length > 0
-        ? '/inventory'
-        : first
-          ? `/orders/${first.id}`
-          : reviewActionCount > 0
-            ? '/reviews'
-            : procurement.merchantStockCount > 0
-              ? '#purchase-merchant'
-              : null;
-  const headline = actionCount
-    ? `還有 ${actionCount} 件事需要處理`
-    : waiting.length
-      ? '目前沒有需要立即處理的訂單'
-      : '目前所有訂單工作都已處理完成';
-  const subline = actionCount
-    ? `今天已完成 ${completedSteps} 個處理步驟；另有 ${waiting.length} 筆等待外部條件。`
-    : waiting.length
-      ? `另有 ${waiting.length} 筆等待外部條件；完成後會自動回到工作流程。`
-      : `今天已完成 ${completedSteps} 個處理步驟。`;
-  const shipmentCount = orders.filter((order) => ['READY', 'FULFILLMENT_PENDING'].includes(order.omsStatus ?? '')).length;
-  const attentionItems = [
-    procurement.shipmentAudit.missing.length > 0 ? { href: '#shipment-stock-check', label: `有 ${procurement.shipmentAudit.missing.length} 筆出貨扣庫存紀錄待核對`, tone: 'bg-destructive' } : null,
-    inventoryActionCount > 0 ? { href: '/inventory', label: `有 ${inventoryActionCount} 項商品庫存需處理`, tone: 'bg-warning' } : null,
-    shipmentCount > 0 ? { href: '/shipments?status=pending', label: `有 ${shipmentCount} 筆訂單等待出貨`, tone: 'bg-primary' } : null,
-    reviewActionCount > 0 ? { href: '/reviews', label: `有 ${reviewActionCount} 筆資料等待審核`, tone: 'bg-primary' } : null,
-  ].filter(Boolean) as { href: string; label: string; tone: string }[];
+  }
+
+  const rows = orders.status === 'fulfilled' ? orders.value.map(toRow) : [];
+  const waiting = waitingOrders.status === 'fulfilled' ? waitingOrders.value.map(toRow) : [];
+  const inventory = procurement.status === 'fulfilled' ? procurement.value : null;
+  const selected = rows.find(row => row.id === selectedId && row.missingMapping);
+  const priority = [
+    ...rows.map(row => ({
+      id: row.id, title: row.orderNumber, detail: row.items[0]?.productName, reason: row.reason,
+      action: row.missingMapping ? '檢查商品對應' : row.action,
+      href: row.missingMapping ? '/dashboard?item=' + encodeURIComponent(row.id) : '/orders/' + row.id,
+    })),
+    ...(inventory?.shipmentAudit.missing ?? []).slice(0, 3).map(shipment => ({
+      id: 'shipment-' + shipment.id, title: '出貨庫存紀錄', detail: undefined,
+      reason: '出貨扣庫存紀錄待核對', action: '查看出貨單', href: '/shipments/' + shipment.id,
+    })),
+    ...(inventory?.purchases ?? []).filter(order => order.remindFromDate <= endOfToday).slice(0, 3).map(order => ({
+      id: 'purchase-' + order.id, title: '採購到貨', detail: undefined,
+      reason: '已到收貨提醒日', action: '查看採購單', href: '/inventory/purchase-orders/' + order.id,
+    })),
+  ];
 
   return <div className="dashboard-operations space-y-6">
-    <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-7">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-2">
-          <p className="text-sm font-semibold text-primary">今天最重要的一件事</p>
-          <h2 className="text-2xl font-semibold tracking-tight text-navy sm:text-3xl">{headline}</h2>
-          <p className="text-sm text-muted-foreground">{subline}</p>
+    <div className={selected ? 'grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.45fr)]' : undefined}>
+      <section aria-labelledby="workbench-priority" className="overflow-hidden rounded-xl border bg-card">
+        <div className="flex items-center gap-2 bg-warning/15 px-4 py-3">
+          <AlertCircle className="h-5 w-5 text-warning" />
+          <h2 id="workbench-priority" className="font-semibold">優先處理</h2>
+          <Link href="/orders?work=now" className="ml-auto text-sm font-medium text-primary hover:underline">查看待處理訂單</Link>
         </div>
-        {primaryHref ? <Button size="lg" asChild><Link href={primaryHref}>立即處理</Link></Button> : <span className="text-sm font-medium text-muted-foreground">目前沒有待辦</span>}
+        {orders.status === 'rejected' && <p role="status" className="px-4 py-3 text-sm">暫時無法取得待處理訂單</p>}
+        {priority.length > 0 ? <div className="divide-y">
+          <div aria-hidden="true" className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(9rem,auto)] gap-4 bg-muted/40 px-4 py-2 text-sm font-medium sm:grid">
+            <span>事項</span><span>原因</span><span>下一步</span>
+          </div>
+          {priority.map(row => <div key={row.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(9rem,auto)] sm:items-center sm:gap-4">
+            <div className="min-w-0 break-words"><p className="font-semibold">{row.title}</p>{row.detail && <p className="text-sm text-muted-foreground">{row.detail}</p>}</div>
+            <p className="min-w-0 break-words text-sm">{row.reason}</p>
+            <Button asChild variant="outline" size="sm" className="w-fit sm:justify-self-start"><Link href={row.href}>{row.action}</Link></Button>
+          </div>)}
+        </div> : orders.status === 'fulfilled' && procurement.status === 'fulfilled' && <p className="p-4 text-sm text-muted-foreground">目前沒有優先處理事項</p>}
+        {procurement.status === 'rejected' && <p role="status" className="px-4 py-3 text-sm">暫時無法取得庫存與採購待辦</p>}
+      </section>
+
+      {selected && <aside aria-labelledby="workbench-product" className="rounded-xl border bg-card p-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="workbench-product" className="font-semibold">檢查商品對應</h2>
+          <Link href="/dashboard" className="text-sm text-primary hover:underline">關閉</Link>
+        </div>
+        <p className="mt-3 text-sm font-medium">{selected.orderNumber}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{selected.reason}</p>
+        <div className="mt-4 grid gap-2">
+          <Button asChild variant="outline"><Link href="/products/shopify-candidates">查看 Shopify 商品候選</Link></Button>
+          <Button asChild><Link href={'/orders/' + selected.id}>開啟訂單確認對應</Link></Button>
+        </div>
+      </aside>}
+    </div>
+
+    <section aria-labelledby="workbench-queues">
+      <h2 id="workbench-queues" className="mb-3 font-semibold">待處理清單</h2>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <DashboardMetric href="/reviews" label="待審核" value={reviews.status === 'fulfilled' ? reviewInboxTotal(reviews.value) : null} />
+        <DashboardMetric href="/shipments?status=pending" label="待出貨" value={shipments.status === 'fulfilled' ? shipments.value.pendingCount : null} />
+        <DashboardMetric href="/shipments?status=delivered" label="待驗收" value={shipments.status === 'fulfilled' ? shipments.value.byStatus.delivered ?? 0 : null} />
+        <DashboardMetric href="/orders?work=waiting" label="待付款" value={waitingCount.status === 'fulfilled' ? waitingCount.value : null} />
       </div>
     </section>
 
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <DashboardMetric href="/shipments?status=pending" label="待出貨" value={shipmentCount} detail="筆訂單等待出貨" />
-      <DashboardMetric href="/inventory" label="主倉待辦" value={inventoryActionCount} detail="項商品需處理" warning />
-      <DashboardMetric href="/reviews" label="待審核" value={reviewActionCount} detail="筆資料等待審核" />
-      <DashboardMetric href="/jar-exchange/manage?tab=ledger" label="本週換罐" value={jarWeekActivity.totalExchanges} detail="次換罐活動" />
+    <section aria-labelledby="workbench-waiting" className="rounded-xl border bg-card">
+      <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+        <h2 id="workbench-waiting" className="flex items-center gap-2 font-semibold"><Clock3 className="h-5 w-5 text-warning" />等待中</h2>
+        <Link href="/orders?work=waiting" className="text-sm font-medium text-primary hover:underline">查看待付款訂單</Link>
+      </div>
+      <div className="px-4">
+        {waitingOrders.status === 'rejected' ? <p role="status" className="py-3 text-sm">暫時無法取得等待中的訂單</p> :
+          waiting.length ? <OrderRows rows={waiting} /> : <p className="py-3 text-sm text-muted-foreground">目前沒有等待付款的訂單</p>}
+      </div>
     </section>
 
-    <InventoryActionBoard data={procurement} today={today.gte} />
-
+    {inventory && <InventoryActionBoard data={inventory} today={today.gte} />}
     <DashboardJarWeekActivity />
-
-    <section className="grid gap-5 xl:grid-cols-2">
-      <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
-        <div className="flex items-center justify-between"><h3 className="font-semibold text-navy">今天流程</h3><span className="text-xs text-muted-foreground">即時工作狀態</span></div>
-        <div className="mt-6 grid grid-cols-4 divide-x divide-border/70 text-center">
-          <FlowMetric label="訂單" value={now.length} />
-          <FlowMetric label="出貨" value={shipmentCount} />
-          <FlowMetric label="收貨" value={duePurchaseOrderCount} />
-          <FlowMetric label="完成" value={completedSteps} detail={<>今日完成 {completedSteps}</>} />
-        </div>
-      </div>
-      <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6">
-        <div className="flex items-center justify-between"><h3 className="font-semibold text-navy">需要注意</h3><Link href="/inventory" className="text-sm font-medium text-primary hover:underline">查看全部</Link></div>
-        <div className="mt-4 space-y-3">
-          {attentionItems.length ? attentionItems.map((item) => <Link key={item.label} href={item.href} className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-muted/50"><span className={`h-2.5 w-2.5 rounded-full ${item.tone}`} /><span className="text-sm font-medium">{item.label}</span></Link>) : <p className="py-4 text-sm text-muted-foreground">目前沒有需要注意的異常。</p>}
-        </div>
-      </div>
-    </section>
-
-    {reviewActionCount > 0 ? (
-      <Link
-        href="/reviews"
-        className="flex items-center justify-between gap-4 rounded-xl border border-border/70 bg-card px-4 py-3 transition-colors hover:bg-muted/25"
-      >
-        <div>
-          <p className="font-semibold">其他待處理</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            UGC {reviewCounts.ugc} · 補貨申請 {reviewCounts.restock}
-          </p>
-        </div>
-        <span className="inline-flex items-center gap-1 text-sm font-medium">
-          打開待審核 <ArrowRight className="h-4 w-4" />
-        </span>
-      </Link>
-    ) : null}
-
-    <WorkList title="現在處理" count={now.length} icon={<AlertCircle className="h-5 w-5 text-primary" />} rows={now.slice(0, 6)} empty="目前沒有需要立即處理的訂單" />
-
-    {waiting.length > 0 ? <details className="rounded-2xl border border-border/70 bg-card">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5">
-        <span className="flex items-center gap-2 font-semibold"><Clock3 className="h-5 w-5 text-warning" />等待中</span>
-        <span className="text-sm text-muted-foreground">{waiting.length} 筆訂單</span>
-      </summary>
-      <div className="border-t px-5 pb-2"><OrderRows rows={waiting.slice(0, 6)} /></div>
-    </details> : null}
-
-
   </div>;
 }
 
-function DashboardMetric({ href, label, value, detail, warning = false }: { href: string; label: string; value: number; detail: string; warning?: boolean }) {
-  return <Link href={href} className={`rounded-2xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/20 ${warning ? 'border-warning/30 bg-warning/5' : 'border-border/70 bg-card'}`}>
-    <p className={`text-sm font-medium ${warning ? 'text-warning' : 'text-muted-foreground'}`}>{label}</p>
-    <p className="mt-2 text-3xl font-semibold tracking-tight text-navy">{value}</p>
-    <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+function DashboardMetric({ href, label, value }: { href: string; label: string; value: number | null }) {
+  return <Link href={href} className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/20">
+    <p className="text-sm font-medium text-muted-foreground">{label}</p>
+    <p className={value === null ? 'mt-2 text-sm text-muted-foreground' : 'mt-2 text-2xl font-semibold text-navy'}>
+      {value ?? '暫時無法取得'}
+    </p>
   </Link>;
-}
-
-function FlowMetric({ label, value, detail = '筆待處理' }: { label: string; value: number; detail?: ReactNode }) {
-  return <div className="px-2"><p className="text-sm font-medium text-navy">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight text-navy">{value}</p><p className="mt-1 text-xs text-muted-foreground">{detail}</p></div>;
-}
-
-function WorkList({ title, count, icon, rows, empty }: { title: string; count: number; icon: ReactNode; rows: WorkRow[]; empty: string }) {
-  return <section className="overflow-hidden rounded-2xl border border-border/70 bg-card">
-    <div className="flex items-center justify-between border-b px-5 py-4"><h3 className="flex items-center gap-2 font-semibold">{icon}{title}</h3><span className="text-sm text-muted-foreground">{count} 件</span></div>
-    {rows.length ? <div className="px-5"><OrderRows rows={rows} /></div> : <p className="p-8 text-center text-sm text-muted-foreground">{empty}</p>}
-  </section>;
 }
 
 function OrderRows({ rows }: { rows: WorkRow[] }) {

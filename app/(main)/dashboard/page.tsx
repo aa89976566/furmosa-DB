@@ -14,7 +14,7 @@ const WorkbenchEntry = nextDynamic(() => import('@/components/dashboard/workbenc
 
 export const dynamic = 'force-dynamic';
 
-type DashboardPageProps = { searchParams: Promise<{ view?: string; role?: string }> };
+type DashboardPageProps = { searchParams: Promise<{ view?: string; role?: string; item?: string }> };
 
 export default async function DashboardPage(props: DashboardPageProps) {
   const searchParams = await props.searchParams;
@@ -36,7 +36,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
         ? <Suspense fallback={<DashboardBodyFallback />}><DashboardBodySection /></Suspense>
         : workbench
           ? <><RoleSwitcher activeRole={searchParams.role} /><WorkbenchEntry initialRole={searchParams.role} initialTasks={todayTasks} assignees={assignees} kpis={dashboardData?.kpis ?? null} /></>
-          : <Suspense fallback={<DashboardTasksFallback />}><OmsDashboard /></Suspense>}
+          : <Suspense fallback={<DashboardTasksFallback />}><OmsDashboard selectedId={searchParams.item} /></Suspense>}
     </main>
   </>;
 }
