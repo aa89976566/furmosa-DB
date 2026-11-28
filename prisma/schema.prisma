@@ -402,6 +402,7 @@ model RefillOrder {
   merchantId             String    @map("merchant_id")
   petName                String?   @map("pet_name")
   productId              String?   @map("product_id")
+  requestedFlavourId     String?   @map("requested_flavour_id")
   deliveredFlavourId     String?   @map("delivered_flavour_id")
   deliveredQuantity      Int?      @map("delivered_quantity")
   /// first | exchange
