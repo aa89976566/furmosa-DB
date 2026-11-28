@@ -6,6 +6,7 @@ import {
   computeLineShopCartSummary,
   buildLineShopCartMessages,
   resolveLineShopShipping,
+  resetLineShopDraftAfterCartEdit,
   shopCartSubtotal,
   updateLineShopCartItems,
 } from '@/lib/line/shop-checkout';
@@ -23,6 +24,20 @@ test('LINE shop cart item controls update only the selected variant within bound
   assert.deepEqual(updateLineShopCartItems(original, 'missing', 'remove'), original);
   assert.equal(updateLineShopCartItems([{ ...original[0], quantity: 99 }], 'v1', 'increment')[0].quantity, 99);
   assert.deepEqual(original.map((item) => item.quantity), [2, 1]);
+});
+
+test('editing a LINE shop cart clears stale checkout and recipient fields', () => {
+  const items = [{ productId: 'p', title: '雞霸', variantId: 'v', variantTitle: '45g', price: 299, quantity: 2 }];
+  assert.deepEqual(resetLineShopDraftAfterCartEdit({
+    items,
+    checkoutKey: 'session-1',
+    shippingMode: '711',
+    recipientName: '王小明',
+    phone: '0912345678',
+    addressOrStore: '示範門市 123456',
+    orderId: 'order-1',
+    orderNumber: 'LINE-000001',
+  }, items), { items });
 });
 
 test('LINE shop subtotal sums quantity', () => {
@@ -60,6 +75,9 @@ test('LINE shop cart reply keeps shipping and fee together with postback actions
   assert.match(raw, /尚未下單/);
   assert.match(raw, /jd=shop_checkout/);
   assert.match(raw, /jd=shop_home/);
+  assert.match(raw, /jd=shop_increment(?:&|&amp;)variant=v/);
+  assert.match(raw, /jd=shop_decrement(?:&|&amp;)variant=v/);
+  assert.match(raw, /jd=shop_remove(?:&|&amp;)variant=v/);
   assert.doesNotMatch(raw, /"type":"message"/);
 });
 

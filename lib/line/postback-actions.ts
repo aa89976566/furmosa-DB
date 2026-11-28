@@ -57,6 +57,7 @@ import {
   buildLineShopCartMessages,
   getLineShopCart,
   startLineShopCheckout,
+  updateLineShopItem,
 } from '@/lib/line/shop-checkout';
 import { listLineShopProducts, type LineShopCategory } from '@/lib/line/shop-catalog';
 import {
@@ -237,6 +238,17 @@ export async function handleLinePostback(
       console.error('[line/shop] add item failed', err);
       await replyLineMessage(replyToken, buildShopFallbackMessages('all'));
     }
+    return;
+  }
+  if (action === 'shop_increment' || action === 'shop_decrement' || action === 'shop_remove') {
+    const variantId = params.get('variant') ?? '';
+    const operation = action === 'shop_increment'
+      ? 'increment'
+      : action === 'shop_decrement'
+        ? 'decrement'
+        : 'remove';
+    const result = await updateLineShopItem(lineUserId, variantId, operation);
+    await replyLineMessage(replyToken, buildLineShopCartMessages(result.draft));
     return;
   }
   if (action === 'shop_checkout') {

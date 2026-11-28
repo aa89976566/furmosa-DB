@@ -38,6 +38,21 @@ export function updateLineShopCartItems(
   });
 }
 
+export function resetLineShopDraftAfterCartEdit(
+  draft: LineShopDraft,
+  items: LineShopCartItem[],
+): LineShopDraft {
+  const next: LineShopDraft = { ...draft, items };
+  delete next.shippingMode;
+  delete next.recipientName;
+  delete next.phone;
+  delete next.addressOrStore;
+  delete next.orderId;
+  delete next.orderNumber;
+  delete next.checkoutKey;
+  return next;
+}
+
 export function shopCartSubtotal(items: LineShopCartItem[]) {
   return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 }
@@ -85,7 +100,25 @@ export function buildLineShopCartMessages(draft: LineShopDraft): LineReplyMessag
   }];
   const lines = draft.items.map((item) => {
     const variant = item.variantTitle && item.variantTitle !== '單一規格' ? `｜${item.variantTitle}` : '';
-    return `${item.title}${variant} × ${item.quantity}　${money(item.price * item.quantity)}`;
+    const encodedVariant = encodeURIComponent(item.variantId);
+    return {
+      type: 'box' as const,
+      layout: 'vertical' as const,
+      spacing: 'sm' as const,
+      contents: [
+        { type: 'text' as const, text: `${item.title}${variant} × ${item.quantity}　${money(item.price * item.quantity)}`, size: 'sm' as const, color: '#203E54', wrap: true },
+        {
+          type: 'box' as const,
+          layout: 'horizontal' as const,
+          spacing: 'sm' as const,
+          contents: [
+            { type: 'button' as const, style: 'secondary' as const, height: 'sm' as const, action: { type: 'postback' as const, label: '−', data: `jd=shop_decrement&variant=${encodedVariant}`, displayText: `減少 ${item.title}` } },
+            { type: 'button' as const, style: 'secondary' as const, height: 'sm' as const, action: { type: 'postback' as const, label: '+', data: `jd=shop_increment&variant=${encodedVariant}`, displayText: `增加 ${item.title}` } },
+            { type: 'button' as const, style: 'link' as const, height: 'sm' as const, action: { type: 'postback' as const, label: '移除', data: `jd=shop_remove&variant=${encodedVariant}`, displayText: `移除 ${item.title}` } },
+          ],
+        },
+      ],
+    };
   });
   const shippingLine = summary.shippingMode === 'home'
     ? `目前寄送：宅配到府，運費 NT$0（已達免運）`
@@ -98,7 +131,7 @@ export function buildLineShopCartMessages(draft: LineShopDraft): LineReplyMessag
       styles: { body: { backgroundColor: '#F8F6EF' }, footer: { backgroundColor: '#F8F6EF' } },
       body: { type: 'box', layout: 'vertical', spacing: 'md', paddingAll: '18px', contents: [
         { type: 'text', text: '購物車', size: 'xl', color: '#203E54', weight: 'bold' },
-        { type: 'text', text: lines.join('\n'), size: 'sm', color: '#203E54', wrap: true },
+        ...lines,
         { type: 'separator', color: '#DEDBD5' },
         { type: 'text', text: `商品小計 ${money(summary.subtotal)}`, size: 'lg', color: '#203E54', weight: 'bold', wrap: true },
         { type: 'text', text: shippingLine, size: 'sm', color: '#60717D', wrap: true },
@@ -152,13 +185,22 @@ export async function addLineShopItem(lineUserId: string, variantId: string) {
     quantity: 1,
     imageUrl: product.imageUrl,
   });
-  delete draft.shippingMode;
-  delete draft.recipientName;
-  delete draft.phone;
-  delete draft.addressOrStore;
-  delete draft.orderId;
-  delete draft.orderNumber;
-  delete draft.checkoutKey;
+  const next = resetLineShopDraftAfterCartEdit(draft, draft.items);
+  await save(lineUserId, 'CART', next);
+  return { ok: true as const, draft: next };
+}
+
+export async function updateLineShopItem(
+  lineUserId: string,
+  variantId: string,
+  operation: LineShopCartOperation,
+) {
+  const current = await currentShop(lineUserId);
+  if (!current) return { ok: false as const, draft: { items: [] } satisfies LineShopDraft };
+  const draft = resetLineShopDraftAfterCartEdit(
+    current.draft,
+    updateLineShopCartItems(current.draft.items, variantId, operation),
+  );
   await save(lineUserId, 'CART', draft);
   return { ok: true as const, draft };
 }
