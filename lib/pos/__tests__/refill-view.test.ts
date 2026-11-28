@@ -6,8 +6,22 @@ import {
   parseRefillLookupQuery,
   refillListHint,
   refillStaffView,
+  selectRefillDeliveryItem,
 } from '@/lib/pos/refill-view';
 import { mapRefillStaffError } from '@/lib/pos/refill-staff-errors';
+
+describe('POS preorder delivery selection', () => {
+  it('uses the original flavour and one jar even when a previous order selected another item', () => {
+    assert.deepEqual(selectRefillDeliveryItem('duck', { flavourId: 'chicken', quantity: 3 }), {
+      flavourId: 'duck', quantity: 1,
+    });
+  });
+
+  it('keeps the staff selection for orders without a preorder flavour', () => {
+    const selection = { flavourId: 'chicken', quantity: 2 };
+    assert.deepEqual(selectRefillDeliveryItem(null, selection), selection);
+  });
+});
 
 describe('refill lookup parse', () => {
   it('normalizes spaces and dashes, then detects 8-digit serials', () => {

@@ -20,7 +20,7 @@ export type RefillHistoryAnomalyType = (typeof REFILL_HISTORY_ANOMALY_TYPES)[num
 
 export type RefillHistoryOrder = {
   id: string;
-  appointmentId: string;
+  appointmentId: string | null;
   merchantId: string;
   orderType: string;
   deliveryMode: string;
@@ -131,7 +131,7 @@ export function analyzeRefillHistory(
   const byAppointment = new Map<string, RefillHistoryOrder[]>();
   const byOldSerial = new Map<string, RefillHistoryOrder[]>();
   for (const order of activeOrders) {
-    addGrouped(byAppointment, order.appointmentId, order);
+    if (order.appointmentId) addGrouped(byAppointment, order.appointmentId, order);
     const serial = order.oldContainerSerial?.trim();
     if (serial) addGrouped(byOldSerial, serial, order);
   }

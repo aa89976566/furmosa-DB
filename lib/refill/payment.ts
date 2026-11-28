@@ -85,11 +85,21 @@ export async function initiateRefillPayment(input: {
   }
 
   const purpose: PaymentPurpose = input.purpose ?? 'refill';
-  // ECPay rejects a MerchantTradeNo after it has already received that checkout,
-  // even when the customer leaves or the hosted page expires before payment.
-  // Therefore every explicit checkout request is a new payment attempt. Older
-  // pending attempts remain available for their signed callback and audit trail.
+  const isTopup = purpose === 'extra_topup';
   const { order, payment } = await prisma.$transaction(async (tx) => {
+    if (isTopup) {
+      // Serialize the creation of an extra payment with other requests on this order.
+      const rows = await tx.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "refill_orders"
+        WHERE "id" = ${input.orderId}
+          AND "customer_id" = ${input.customerId}
+        FOR UPDATE
+      `;
+      if (rows.length !== 1) {
+        throw new RefillError('找不到這筆換罐訂單。', 'ORDER_NOT_FOUND', 404);
+      }
+    }
+
     const order = await tx.refillOrder.findUnique({
       where: { id: input.orderId },
       include: { merchant: { select: { name: true } } },
@@ -129,19 +139,51 @@ export async function initiateRefillPayment(input: {
         totalAmount: order.totalAmount,
         hasValidReservation,
       });
-    } else if (order.status !== 'awaiting_extra_payment') {
-      throw new RefillError('這筆訂單目前不需要補差額。', 'INVALID_STATUS', 409);
+    } else {
+      if (
+        order.status !== 'awaiting_extra_payment' ||
+        order.orderType !== 'exchange' ||
+        order.deliveryMode !== 'exchange' ||
+        !order.paidAt ||
+        order.baseAmount !== REFILL_PRICES.exchange ||
+        order.totalAmount !== REFILL_PRICES.exchange ||
+        order.extraAmount !== 0
+      ) {
+        throw new RefillError('這筆訂單目前無法線上補差額，請先確認訂單狀態。', 'INVALID_STATUS', 409);
+      }
+
+      const attempts = await tx.paymentOrder.findMany({
+        where: { refillOrderId: order.id, purpose },
+        take: 2,
+      });
+      const [existing] = attempts;
+      if (existing) {
+        if (
+          attempts.length !== 1 ||
+          existing.provider !== 'ecpay' ||
+          existing.amount !== REFILL_PRICES.extraTopup ||
+          existing.status !== 'pending'
+        ) {
+          throw new RefillError(
+            '這筆補款需要先確認交易結果。請聯絡匠寵，確認後再付款。',
+            'TOPUP_PAYMENT_REVIEW_REQUIRED',
+            409,
+          );
+        }
+        // Reissue the same signed form for a lost response. If ECPay has
+        // already received this trade number, it will reject a second submission.
+        return { order, payment: existing };
+      }
     }
 
-    const amount =
-      purpose === 'extra_topup' ? REFILL_PRICES.extraTopup : order.baseAmount;
+    const amount = isTopup ? REFILL_PRICES.extraTopup : order.baseAmount;
 
     const created = await tx.paymentOrder.create({
       data: {
         refillOrderId: order.id,
         purpose,
         provider: 'ecpay',
-        merchantTradeNo: buildMerchantTradeNo(purpose === 'extra_topup' ? 'XT' : 'RF'),
+        merchantTradeNo: buildMerchantTradeNo(isTopup ? 'XT' : 'RF'),
         amount,
         status: 'pending',
       },
@@ -180,6 +222,7 @@ export async function initiateRefillPayment(input: {
     itemName,
     tradeDesc: `FurmosaRefill-${order.id.slice(0, 8)}`,
     customField1: order.id,
+    tradeDate: isTopup ? payment.createdAt : undefined,
   });
 
   return {

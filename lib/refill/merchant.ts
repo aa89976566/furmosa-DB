@@ -12,11 +12,12 @@ import {
 } from '@/lib/automation/line-jobs';
 import {
   REFILL_PAID_OPEN_STATUSES,
+  REFILL_STOCK_RESERVATION_STATUSES,
   refillDeliveryRequiresEmptyJar,
   type RefillOrderStatus,
 } from '@/lib/refill/constants';
+import { checkRefillDeliveryStock } from '@/lib/refill/delivery-stock';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
-import { initiateRefillPayment } from '@/lib/refill/payment';
 import { resolveCouponStoreForMerchant } from '@/lib/coupons/merchant-store-access';
 
 export type MerchantJarExchangeMember = {
@@ -120,12 +121,13 @@ export async function listMerchantRefillOrders(merchantId: string) {
     orderType: o.orderType,
     deliveryMode: o.deliveryMode,
     totalAmount: o.totalAmount,
+    requestedFlavourId: o.requestedFlavourId,
     extraAmount: o.extraAmount,
-    petName: o.petName ?? o.appointment.petName,
+    petName: o.petName ?? o.appointment?.petName ?? null,
     customerName: o.customer.name,
-    date: formatLocalDate(o.appointment.startsAt),
-    time: formatLocalTime(o.appointment.startsAt),
-    startsAt: o.appointment.startsAt.toISOString(),
+    date: o.appointment ? formatLocalDate(o.appointment.startsAt) : '',
+    time: o.appointment ? formatLocalTime(o.appointment.startsAt) : '',
+    startsAt: o.appointment?.startsAt.toISOString() ?? '',
     createdAt: o.createdAt.toISOString(),
     paid: Boolean(o.paidAt) || o.payments.length > 0,
     oldContainerSerial: o.oldContainerSerial,
@@ -155,8 +157,9 @@ export async function completeRefillDelivery(input: {
   quantity: number;
   emptyJarConfirmed: boolean;
 }) {
-  const quantity = Math.trunc(input.quantity);
-  if (!input.flavourId || quantity < 1 || quantity > 20) {
+  const quantity = input.quantity;
+  if (typeof input.flavourId !== 'string' || !input.flavourId.trim() ||
+      !Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
     throw new RefillError('請選擇實際交付品項與正確數量。', 'INVALID_DELIVERY', 400);
   }
 
@@ -173,7 +176,7 @@ export async function completeRefillDelivery(input: {
   }
 
   const result: CompleteDeliveryTxResult = await prisma.$transaction(async (tx) => {
-    await lockRefillOrderForCompletion(tx, input.orderId, input.merchantId);
+    await lockRefillOrder(tx, input.orderId, input.merchantId);
     const order = await tx.refillOrder.findUnique({ where: { id: input.orderId } });
     if (!order) throw new RefillError('找不到訂單。', 'ORDER_NOT_FOUND', 404);
 
@@ -220,6 +223,31 @@ export async function completeRefillDelivery(input: {
     });
     if (!stock || !stock.isAvailable || !stock.flavour.isActive || stock.quantity < quantity) {
       throw new RefillError('本店此品項庫存不足，請選擇其他品項。', 'INSUFFICIENT_STOCK', 409);
+    }
+
+    // Same stock-row lock as preorder creation. This order may consume its
+    // own reservation, but neither a preorder nor a walk-in can use others'.
+    const reservedForOthers = await tx.refillOrder.count({
+      where: {
+        id: { not: order.id },
+        merchantId: input.merchantId,
+        appointmentId: null,
+        requestedFlavourId: input.flavourId,
+        status: { in: REFILL_STOCK_RESERVATION_STATUSES },
+      },
+    });
+    const stockCheck = checkRefillDeliveryStock({
+      requestedFlavourId: order.requestedFlavourId,
+      deliveredFlavourId: input.flavourId,
+      quantity,
+      onHand: stock.quantity,
+      reservedForOthers,
+    });
+    if (stockCheck === 'PREORDER_ITEM_MISMATCH') {
+      throw new RefillError('請交付這筆預購指定的口味與一罐數量。', stockCheck, 409);
+    }
+    if (stockCheck === 'STOCK_RESERVED') {
+      throw new RefillError('此口味庫存已保留給其他預購單。', stockCheck, 409);
     }
 
     const deducted = await tx.merchantRefillStock.updateMany({
@@ -473,19 +501,21 @@ export async function verifyOldContainer(input: {
     throw new RefillError('序號須為 8 位數字。', 'INVALID_SERIAL', 400);
   }
 
-  const order = await loadMerchantOrder(input.orderId, input.merchantId);
-
-  if (!['paid_waiting_return'].includes(order.status)) {
-    throw new RefillError('這筆訂單目前不能驗空罐。', 'INVALID_STATUS', 409);
-  }
-  if (order.deliveryMode === 'first') {
-    throw new RefillError('這筆是首罐／補差額訂單，不需要回收空罐。', 'NO_OLD_JAR_NEEDED', 400);
-  }
-  if (!order.paidAt) {
-    throw new RefillError('尚未付款，不能交付。', 'UNPAID', 409);
-  }
+  await loadMerchantOrder(input.orderId, input.merchantId);
 
   await prisma.$transaction(async (tx) => {
+    await lockRefillOrder(tx, input.orderId, input.merchantId);
+    const order = await tx.refillOrder.findUniqueOrThrow({ where: { id: input.orderId } });
+    if (order.status !== 'paid_waiting_return') {
+      throw new RefillError('這筆訂單目前不能驗空罐。', 'INVALID_STATUS', 409);
+    }
+    if (!refillDeliveryRequiresEmptyJar(order)) {
+      throw new RefillError('這筆是首罐／補差額訂單，不需要回收空罐。', 'NO_OLD_JAR_NEEDED', 400);
+    }
+    if (!order.paidAt) {
+      throw new RefillError('尚未付款，不能交付。', 'UNPAID', 409);
+    }
+
     const jar = await tx.jarCode.findUnique({ where: { code: serial } });
     if (!jar) throw new RefillError('找不到這個序號。', 'SERIAL_NOT_FOUND', 404);
     if (jar.redeemedByCustomerId !== order.customerId) {
@@ -549,7 +579,7 @@ function deliveredPointsAwarded(order: {
   return order.orderType === 'exchange' && !isFirstPath && order.pointsAwardedAt != null;
 }
 
-async function lockRefillOrderForCompletion(
+async function lockRefillOrder(
   tx: Prisma.TransactionClient,
   orderId: string,
   merchantId: string,
@@ -605,7 +635,7 @@ export async function assignNewAndComplete(input: {
   await loadMerchantOrder(input.orderId, input.merchantId);
 
   const result: AssignNewCompletionTxResult = await prisma.$transaction(async (tx) => {
-    await lockRefillOrderForCompletion(tx, input.orderId, input.merchantId);
+    await lockRefillOrder(tx, input.orderId, input.merchantId);
     const fresh = await tx.refillOrder.findUnique({ where: { id: input.orderId } });
     if (!fresh) throw new RefillError('找不到訂單。', 'ORDER_NOT_FOUND', 404);
     if (fresh.merchantId !== input.merchantId) {
@@ -833,63 +863,37 @@ export async function markMissingContainer(input: {
   actorId: string;
   choice: 'keep' | 'topup';
 }) {
-  const order = await loadMerchantOrder(input.orderId, input.merchantId);
-  if (order.status !== 'paid_waiting_return') {
-    throw new RefillError('這筆訂單目前不能標記忘帶空罐。', 'INVALID_STATUS', 409);
-  }
-  if (order.deliveryMode === 'first') {
-    throw new RefillError('這筆已是首罐路徑，不需收空罐。', 'NO_OLD_JAR_NEEDED', 400);
-  }
+  await loadMerchantOrder(input.orderId, input.merchantId);
 
-  if (input.choice === 'keep') {
-    await prisma.$transaction(async (tx) => {
-      await tx.refillOrder.update({
-        where: { id: order.id },
-        data: {
-          missingContainerNote: '顧客未帶空罐',
-        },
-      });
-      await writeRefillAudit(tx, {
-        refillOrderId: order.id,
-        action: 'missing_container_keep',
-        actorType: 'merchant',
-        actorId: input.actorId,
-        merchantId: input.merchantId,
-      });
-    });
-    return { ok: true as const, choice: 'keep' as const, status: order.status };
-  }
+  const topup = input.choice === 'topup';
+  const status = topup ? 'awaiting_extra_payment' : 'paid_waiting_return';
+  const missingContainerNote = topup ? '顧客未帶空罐，改補差額' : '顧客未帶空罐';
 
-  // topup
   await prisma.$transaction(async (tx) => {
-    assertTransition('paid_waiting_return', 'awaiting_extra_payment');
+    await lockRefillOrder(tx, input.orderId, input.merchantId);
+    const order = await tx.refillOrder.findUniqueOrThrow({ where: { id: input.orderId } });
+    if (!refillDeliveryRequiresEmptyJar(order)) {
+      throw new RefillError('這筆已是首罐路徑，不需收空罐。', 'NO_OLD_JAR_NEEDED', 400);
+    }
+    if (topup && order.status === status) return;
+    if (order.status !== 'paid_waiting_return') {
+      throw new RefillError('這筆訂單目前不能標記忘帶空罐。', 'INVALID_STATUS', 409);
+    }
+    if (!topup && order.missingContainerNote === missingContainerNote) return;
+
+    if (topup) assertTransition(order.status, status);
     await tx.refillOrder.update({
       where: { id: order.id },
-      data: {
-        status: 'awaiting_extra_payment',
-        missingContainerNote: '顧客未帶空罐，改補差額',
-      },
+      data: { status, missingContainerNote },
     });
     await writeRefillAudit(tx, {
       refillOrderId: order.id,
-      action: 'missing_container_topup',
+      action: topup ? 'missing_container_topup' : 'missing_container_keep',
       actorType: 'merchant',
       actorId: input.actorId,
       merchantId: input.merchantId,
     });
   });
 
-  // Create payment checkout for customer (store shows QR / link)
-  const payment = await initiateRefillPayment({
-    orderId: order.id,
-    customerId: order.customerId,
-    purpose: 'extra_topup',
-  });
-
-  return {
-    ok: true as const,
-    choice: 'topup' as const,
-    status: 'awaiting_extra_payment' as const,
-    payment,
-  };
+  return { ok: true as const, choice: input.choice, status };
 }

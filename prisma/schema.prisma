@@ -398,10 +398,11 @@ model MemberPointsLedger {
 model RefillOrder {
   id                     String    @id @default(cuid())
   customerId             String    @map("customer_id")
-  appointmentId          String    @map("appointment_id")
+  appointmentId          String?    @map("appointment_id")
   merchantId             String    @map("merchant_id")
   petName                String?   @map("pet_name")
   productId              String?   @map("product_id")
+  requestedFlavourId     String?   @map("requested_flavour_id")
   deliveredFlavourId     String?   @map("delivered_flavour_id")
   deliveredQuantity      Int?      @map("delivered_quantity")
   /// first | exchange
@@ -426,7 +427,7 @@ model RefillOrder {
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
   customer       Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  appointment    Appointment      @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  appointment    Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
   merchant       Merchant         @relation(fields: [merchantId], references: [id], onDelete: Restrict)
   product          Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
   deliveredFlavour RefillFlavour?   @relation(fields: [deliveredFlavourId], references: [id], onDelete: SetNull)
