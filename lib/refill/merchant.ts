@@ -12,9 +12,11 @@ import {
 } from '@/lib/automation/line-jobs';
 import {
   REFILL_PAID_OPEN_STATUSES,
+  REFILL_STOCK_RESERVATION_STATUSES,
   refillDeliveryRequiresEmptyJar,
   type RefillOrderStatus,
 } from '@/lib/refill/constants';
+import { checkRefillDeliveryStock } from '@/lib/refill/delivery-stock';
 import { formatLocalDate, formatLocalTime } from '@/lib/booking/availability';
 import { initiateRefillPayment } from '@/lib/refill/payment';
 import { resolveCouponStoreForMerchant } from '@/lib/coupons/merchant-store-access';
@@ -155,8 +157,9 @@ export async function completeRefillDelivery(input: {
   quantity: number;
   emptyJarConfirmed: boolean;
 }) {
-  const quantity = Math.trunc(input.quantity);
-  if (!input.flavourId || quantity < 1 || quantity > 20) {
+  const quantity = input.quantity;
+  if (typeof input.flavourId !== 'string' || !input.flavourId.trim() ||
+      !Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
     throw new RefillError('請選擇實際交付品項與正確數量。', 'INVALID_DELIVERY', 400);
   }
 
@@ -220,6 +223,31 @@ export async function completeRefillDelivery(input: {
     });
     if (!stock || !stock.isAvailable || !stock.flavour.isActive || stock.quantity < quantity) {
       throw new RefillError('本店此品項庫存不足，請選擇其他品項。', 'INSUFFICIENT_STOCK', 409);
+    }
+
+    // Same stock-row lock as preorder creation. This order may consume its
+    // own reservation, but neither a preorder nor a walk-in can use others'.
+    const reservedForOthers = await tx.refillOrder.count({
+      where: {
+        id: { not: order.id },
+        merchantId: input.merchantId,
+        appointmentId: null,
+        requestedFlavourId: input.flavourId,
+        status: { in: REFILL_STOCK_RESERVATION_STATUSES },
+      },
+    });
+    const stockCheck = checkRefillDeliveryStock({
+      requestedFlavourId: order.requestedFlavourId,
+      deliveredFlavourId: input.flavourId,
+      quantity,
+      onHand: stock.quantity,
+      reservedForOthers,
+    });
+    if (stockCheck === 'PREORDER_ITEM_MISMATCH') {
+      throw new RefillError('請交付這筆預購指定的口味與一罐數量。', stockCheck, 409);
+    }
+    if (stockCheck === 'STOCK_RESERVED') {
+      throw new RefillError('此口味庫存已保留給其他預購單。', stockCheck, 409);
     }
 
     const deducted = await tx.merchantRefillStock.updateMany({

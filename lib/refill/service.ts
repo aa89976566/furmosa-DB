@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import {
   REFILL_ACTIVE_STATUSES,
   REFILL_PAID_OPEN_STATUSES,
+  REFILL_STOCK_RESERVATION_STATUSES,
   amountsForOrderType,
   type RefillOrderType,
   type RefillOrderStatus,
@@ -508,7 +509,7 @@ export async function createRefillOrder(input: {
             merchantId,
             appointmentId: null,
             requestedFlavourId,
-            status: { in: [...REFILL_ACTIVE_STATUSES, 'payment_failed'] },
+            status: { in: REFILL_STOCK_RESERVATION_STATUSES },
           },
         });
         if (!stock?.isAvailable || !stock.flavour.isActive || reserved >= stock.quantity) {

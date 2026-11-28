@@ -39,6 +39,12 @@ export const REFILL_ACTIVE_STATUSES: RefillOrderStatus[] = [
   'awaiting_extra_payment',
 ];
 
+/** 付款失敗的預購單可重試，取消或到期前仍保留原口味。 */
+export const REFILL_STOCK_RESERVATION_STATUSES: RefillOrderStatus[] = [
+  ...REFILL_ACTIVE_STATUSES,
+  'payment_failed',
+];
+
 /** 已付款、等待到店處理 */
 export const REFILL_PAID_OPEN_STATUSES: RefillOrderStatus[] = [
   'paid_waiting_return',
