@@ -27,19 +27,19 @@ export function BookingForm({ today }: { today: string }) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [lineId, setLineId] = useState('');
-  const [checkout, setCheckout] = useState<{ checkoutUrl: string; reference: string } | null>(null);
+  const [checkout, setCheckout] = useState<{ reference: string; variantId: string; cartProperties: Record<string, string> } | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const candidateValues = slots.map(({ date, time }) => date && time ? date + 'T' + time : '');
   const slot = slots[candidate];
   const choosingDate = step === 1 && (format === 'written' || !pickingTime);
   const progressLabels = format === 'live'
-    ? ['選服務', '選首選', '選備用', '填 LINE', '付款']
-    : ['選服務', '選交付日', '填 LINE', '付款'];
+    ? ['選服務', '選首選', '選備用', '填 LINE', '購物袋']
+    : ['選服務', '選交付日', '填 LINE', '購物袋'];
   const currentProgress = format === 'live' ? (step === 1 ? 1 + candidate : step === 0 ? 0 : step + 1) : step;
-  const currentProgressLabel = step === 3 ? '待付款' : progressLabels[currentProgress];
+  const currentProgressLabel = step === 3 ? '加入購物袋' : progressLabels[currentProgress];
   const completed = confirmed.filter(Boolean).length;
   const candidateLabel = candidate === 0 ? '首選' : '備用';
-  const title = step === 3 ? '完成付款' : step === 0 ? '選擇服務' : step === 2 ? (format === 'live' ? '兩組時段已選好' : '填寫 LINE') :
+  const title = step === 3 ? '確認預約資料' : step === 0 ? '選擇服務' : step === 2 ? (format === 'live' ? '兩組時段已選好' : '填寫 LINE') :
     format === 'written' ? '選擇期望交付日' : (candidate === 1 && !pickingTime ? '再選一個備用日期' : '選' + candidateLabel + (pickingTime ? '時間' : '日期'));
 
   useEffect(() => {
@@ -98,7 +98,19 @@ export function BookingForm({ today }: { today: string }) {
     setSlots((previous) => previous.map((slot, index) => index === candidateIndex ? { ...slot, [field]: value } : slot));
   }
 
+  useEffect(() => {
+    function receiveCartError(event: MessageEvent) {
+      if (event.origin === 'https://furmosa.com' && event.source === window.parent &&
+        event.data?.type === 'cynthia-booking-cart-error') {
+        setMessage('暫時無法加入購物袋，請再試一次。');
+      }
+    }
+    window.addEventListener('message', receiveCartError);
+    return () => window.removeEventListener('message', receiveCartError);
+  }, []);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
+    if (step === 3 && window.parent === window) return;
     event.preventDefault();
     if (pending || step !== 2) return;
     const form = new FormData(event.currentTarget);
@@ -114,8 +126,8 @@ export function BookingForm({ today }: { today: string }) {
     setMessage('');
     try {
       const result = await submitBooking(form);
-      if (result.checkoutUrl) {
-        setCheckout({ checkoutUrl: result.checkoutUrl, reference: result.reference });
+      if (result.variantId) {
+        setCheckout(result);
         changeStep(3);
       } else setMessage(result.message ?? '暫時無法送出，請稍後重試。');
     } catch {
@@ -240,17 +252,33 @@ export function BookingForm({ today }: { today: string }) {
           </p>
           <p role="status">已收到預約申請，待付款。完成付款後，匠寵會透過 LINE 與你確認預約。</p>
           <p className="text-sm">預約編號 {checkout.reference}</p>
-          <a href={checkout.checkoutUrl} target="_top" onClick={(event) => {
-            if (window.parent === window) return;
-            event.preventDefault();
-            window.parent.postMessage({ type: 'cynthia-booking-checkout', checkoutUrl: checkout.checkoutUrl }, 'https://furmosa.com');
-          }} className="rounded-lg bg-[#ffe071] px-4 py-3 text-center font-semibold">前往 Shopify 結帳</a>
+          <button
+            type="submit"
+            formAction="https://furmosa.com/cart/add"
+            formMethod="post"
+            onClick={(event) => {
+              if (window.parent === window) return;
+              event.preventDefault();
+              window.parent.postMessage({
+                type: 'cynthia-booking-add-to-cart',
+                variantId: checkout.variantId,
+                properties: checkout.cartProperties,
+              }, 'https://furmosa.com');
+            }}
+            className="rounded-lg bg-[#ffe071] px-4 py-3 text-center font-semibold"
+          >加入購物袋</button>
+          <input type="hidden" name="id" value={checkout.variantId} />
+          <input type="hidden" name="quantity" value="1" />
+          <input type="hidden" name="return_to" value="/cart" />
+          {Object.entries(checkout.cartProperties).map(([key, value]) => (
+            <input key={key} type="hidden" name={'properties[' + key + ']'} value={value} />
+          ))}
         </section>
       )}
       {step < 3 && !choosingDate && <div className="grid gap-2">
         {step === 2 ? (
           <button type="submit" disabled={pending} className="rounded-lg bg-[#ffe071] px-4 py-3 font-semibold disabled:opacity-60">
-            {pending ? '送出中…' : '前往付款'}
+            {pending ? '送出中…' : '確認預約資料'}
           </button>
         ) : (
           <button type="button" className="rounded-lg bg-[#ffe071] px-4 py-3 font-semibold" onClick={() => step === 0 ? changeStep(1) : confirmTime()}>
