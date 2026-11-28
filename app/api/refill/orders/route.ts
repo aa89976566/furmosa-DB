@@ -10,16 +10,18 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       idToken?: string;
       appointmentId?: string;
+      flavourId?: string;
       amount?: number;
       idempotencyKey?: string;
     };
-    if (!body.appointmentId?.trim()) {
+    if (!body.appointmentId?.trim() && process.env.REFILL_STANDALONE_PREORDER_ENABLED !== 'true') {
       return NextResponse.json({ error: '請選擇美容預約。' }, { status: 400 });
     }
     const customer = await requireRefillCustomer(body.idToken ?? '');
     const { order, reused } = await createRefillOrder({
       customerId: customer.customerId,
-      appointmentId: body.appointmentId,
+      appointmentId: body.appointmentId?.trim(),
+      flavourId: body.flavourId?.trim(),
       clientAmount: body.amount,
       idempotencyKey: body.idempotencyKey,
     });
