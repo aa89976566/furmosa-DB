@@ -446,7 +446,7 @@ export async function createRefillOrder(input: {
     throw new RefillError('請選擇預購口味並重新確認。', 'INVALID_PREORDER', 400);
   }
   const idem = appointment
-    ? `refill:${input.customerId}:${requestKey || appointment.id}`
+    ? (requestKey || `refill:${input.customerId}:${appointment.id}`)
     : `refill-preorder:${input.customerId}:${requestKey}`;
 
   const existingByKey = await prisma.refillOrder.findUnique({
