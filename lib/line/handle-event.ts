@@ -375,7 +375,20 @@ export async function handleLineWebhookEvent(event: LineWebhookEvent): Promise<v
   try {
     customer = await findCustomerByLineUserId(lineUserId);
   } catch (err) {
-    console.error('[line] findCustomerByLineUserId failed; treat as guest', err);
+    console.error('[line] findCustomerByLineUserId failed', err);
+    const retryText = {
+      jar_start: '開始換罐',
+      status: '我的會員',
+      savings: '我的會員',
+      balance: '我的會員',
+    } as const;
+    if (
+      parsed.kind === 'jar_start' || parsed.kind === 'status' ||
+      parsed.kind === 'savings' || parsed.kind === 'balance'
+    ) {
+      await replyLineText(replyToken, `暫時無法查詢會員資料。請稍後再傳「${retryText[parsed.kind]}」。`);
+      return;
+    }
   }
   const registered = Boolean(customer);
   if (parsed.kind === 'jar_start') {
