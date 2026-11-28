@@ -23,14 +23,16 @@ export async function notifyRefillPaid(refillOrderId: string) {
   });
   if (!order?.customer.lineUserId) return;
 
-  const pet = order.petName ?? order.appointment.petName ?? '毛孩';
-  const date = `${formatLocalDate(order.appointment.startsAt)} ${formatLocalTime(order.appointment.startsAt)}`;
+  const pet = order.petName ?? order.appointment?.petName ?? '毛孩';
+  const date = order.appointment
+    ? `${formatLocalDate(order.appointment.startsAt)} ${formatLocalTime(order.appointment.startsAt)}`
+    : null;
   const isFirstJar = order.orderType === 'first' || order.deliveryMode === 'first';
   const text = [
     '付款完成啦',
     `${pet} 的換罐已經預約好`,
     '',
-    `${order.merchant.name}｜${date}`,
+    date ? `${order.merchant.name}｜${date}` : order.merchant.name,
     isFirstJar
       ? '這次是首罐 NT$129，不用帶空罐'
       : '這次是續罐 NT$99，記得帶空罐到店裡',
