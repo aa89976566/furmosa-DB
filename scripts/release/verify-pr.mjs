@@ -46,11 +46,27 @@ if (alreadyMerged) {
   if (!['ahead', 'identical'].includes(comparison.status)) {
     throw new Error('Merged PR commit is not contained in current main');
   }
+} else {
+  // Compare against live main, not the PR's potentially stale base snapshot.
+  const comparison = await github(`/compare/main...${expectedHead}`);
+  if (!['ahead', 'identical'].includes(comparison.status) || comparison.behind_by !== 0) {
+    throw new Error('PR head is behind or diverged from current main');
+  }
 }
 
-const checkPayload = await github(`/commits/${expectedHead}/check-runs?per_page=100`);
-const verifyChecks = (checkPayload.check_runs ?? []).filter((check) => check.name === 'verify');
-const verify = verifyChecks.sort((a, b) => Date.parse(b.completed_at ?? 0) - Date.parse(a.completed_at ?? 0))[0];
+const verifyChecks = [];
+for (let page = 1; ; page += 1) {
+  const payload = await github(`/commits/${expectedHead}/check-runs?filter=all&per_page=100&page=${page}`);
+  const checks = payload.check_runs ?? [];
+  verifyChecks.push(...checks.filter((check) => check.name === 'verify'));
+  if (checks.length < 100) break;
+}
+// Check IDs identify creation order; completion time lets an older success
+// hide a newer queued/in-progress rerun, whose completed_at is null.
+if (verifyChecks.some((check) => !Number.isSafeInteger(check.id) || check.id <= 0)) {
+  throw new Error('Cannot establish latest verify check identity');
+}
+const verify = verifyChecks.sort((a, b) => b.id - a.id)[0];
 if (!verify || verify.status !== 'completed' || verify.conclusion !== 'success') {
   throw new Error('Required CI check verify has not succeeded for the exact PR head');
 }
