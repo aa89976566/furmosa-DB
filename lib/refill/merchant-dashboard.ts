@@ -98,7 +98,7 @@ export async function loadMerchantRefillOrderDetail(
     id: order.id,
     status: order.status,
     customerName: order.customer.name,
-    petName: order.petName ?? order.appointment.petName,
+    petName: order.petName ?? order.appointment?.petName ?? null,
     orderType: order.orderType,
     deliveryMode: order.deliveryMode,
     totalAmount: order.totalAmount,
