@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LiffShell } from '@/components/liff/liff-shell';
 import { LiffStatus } from '@/components/liff/liff-status';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,12 @@ type Props = {
   storeId: string | null;
   orderId: string | null;
   paidHint: boolean;
+  standalonePreorder: boolean;
+};
+
+type PreorderCatalog = {
+  merchant: { id: string; name: string };
+  flavours: { id: string; name: string; weightGrams: number }[];
 };
 
 type Booking = {
@@ -55,6 +61,8 @@ type Step =
   | 'register'
   | 'pick'
   | 'no_booking'
+  | 'pick_flavour'
+  | 'confirm_preorder'
   | 'confirm'
   | 'paying'
   | 'success'
@@ -79,6 +87,7 @@ function RefillFlow({
   storeId,
   orderId,
   paidHint,
+  standalonePreorder,
 }: Props & { idToken: string }) {
   const [step, setStep] = useState<Step>(paidHint || orderId ? 'confirming' : 'load');
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +96,10 @@ function RefillFlow({
   const [order, setOrder] = useState<OrderView | null>(null);
   const [busy, setBusy] = useState(false);
   const [eligibilityCheck, setEligibilityCheck] = useState(0);
+  const [catalog, setCatalog] = useState<PreorderCatalog | null>(null);
+  const [selectedFlavourId, setSelectedFlavourId] = useState<string | null>(null);
+  const preorderAttempt = useRef<{ flavourId: string; key: string } | null>(null);
+  const actionPending = useRef(false);
 
   const restartLineLogin = useCallback(async () => {
     const returnUrl = new URL('/liff/refill', window.location.origin);
@@ -168,6 +181,23 @@ function RefillFlow({
           setStep('view');
           return;
         }
+        if (standalonePreorder) {
+          const res = await fetch('/api/refill/catalog', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          });
+          const data = await res.json();
+          if (cancelled) return;
+          if (res.status === 401 && data.code === 'LINE_TOKEN_EXPIRED') {
+            await restartLineLogin();
+            return;
+          }
+          if (!res.ok) throw new Error(data.error ?? REFILL_COPY.genericError);
+          setCatalog(data as PreorderCatalog);
+          setStep('pick_flavour');
+          return;
+        }
         if (e.bookings.length === 0) {
           setStep('no_booking');
           return;
@@ -188,36 +218,64 @@ function RefillFlow({
     return () => {
       cancelled = true;
     };
-  }, [orderId, loadEligibility, loadOrder, eligibilityCheck]);
+  }, [orderId, loadEligibility, loadOrder, eligibilityCheck, standalonePreorder, idToken, restartLineLogin]);
 
-  async function onConfirmPay() {
-    if (!appointmentId) return;
+  async function preparePreorder() {
+    if (!selectedFlavourId || actionPending.current) return;
+    actionPending.current = true;
     setBusy(true);
     setError(null);
     try {
-      const createRes = await fetch('/api/refill/orders', {
+      if (preorderAttempt.current?.flavourId !== selectedFlavourId) {
+        preorderAttempt.current = { flavourId: selectedFlavourId, key: window.crypto.randomUUID() };
+      }
+      const res = await fetch('/api/refill/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           idToken,
-          appointmentId,
-          amount: 1, // 故意錯誤金額；後端必須忽略
+          flavourId: selectedFlavourId,
+          idempotencyKey: preorderAttempt.current.key,
         }),
       });
-      const created = await createRes.json();
-      if (createRes.status === 401 && created.code === 'LINE_TOKEN_EXPIRED') {
+      const data = await res.json();
+      if (res.status === 401 && data.code === 'LINE_TOKEN_EXPIRED') {
         await restartLineLogin();
         return;
       }
-      if (!createRes.ok) throw new Error(created.error ?? REFILL_COPY.genericError);
-      const oid = created.order.id as string;
-      setOrder(created.order);
+      if (!res.ok) throw new Error(data.error ?? REFILL_COPY.genericError);
+      setOrder(data.order as OrderView);
+      setStep('confirm_preorder');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : REFILL_COPY.genericError);
+    } finally {
+      setBusy(false);
+      actionPending.current = false;
+    }
+  }
 
-      if (
-        created.order.status === 'paid_waiting_return' ||
-        created.order.status === 'payment_pending'
-      ) {
-        /* continue */
+  async function onConfirmPay() {
+    const preorderOrderId = step === 'confirm_preorder' ? order?.id : undefined;
+    if ((!preorderOrderId && !appointmentId) || actionPending.current) return;
+    actionPending.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      let oid = preorderOrderId;
+      if (!oid) {
+        const createRes = await fetch('/api/refill/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken, appointmentId }),
+        });
+        const created = await createRes.json();
+        if (createRes.status === 401 && created.code === 'LINE_TOKEN_EXPIRED') {
+          await restartLineLogin();
+          return;
+        }
+        if (!createRes.ok) throw new Error(created.error ?? REFILL_COPY.genericError);
+        oid = created.order.id as string;
+        setOrder(created.order);
       }
 
       const payRes = await fetch(`/api/refill/orders/${oid}/payment`, {
@@ -248,10 +306,65 @@ function RefillFlow({
       form.submit();
     } catch (err) {
       setError(err instanceof Error ? err.message : REFILL_COPY.genericError);
-      setStep('confirm');
+      setStep(preorderOrderId ? 'confirm_preorder' : 'confirm');
     } finally {
       setBusy(false);
+      actionPending.current = false;
     }
+  }
+
+  if (step === 'pick_flavour' && catalog) {
+    return (
+      <section className="space-y-4">
+        <Row label="取罐店" value={catalog.merchant.name} />
+        {catalog.flavours.length === 0 ? (
+          <p>這間店目前沒有可預購的口味，請晚點再來查看。</p>
+        ) : (
+          <fieldset className="space-y-2 disabled:opacity-60" disabled={busy}>
+            <legend className="mb-2 font-medium">選擇預購口味</legend>
+            {catalog.flavours.map((flavour) => (
+              <label key={flavour.id} className="flex min-h-12 items-center gap-3 rounded-xl border p-3">
+                <input
+                  type="radio"
+                  name="refill-flavour"
+                  checked={selectedFlavourId === flavour.id}
+                  onChange={() => setSelectedFlavourId(flavour.id)}
+                />
+                  {flavour.name}{flavour.weightGrams > 0 ? ` · ${flavour.weightGrams}g` : ''}
+              </label>
+            ))}
+          </fieldset>
+        )}
+        {error && <LiffStatus message={error} variant="error" />}
+        <Button
+          type="button"
+          className="min-h-12 w-full"
+          disabled={busy || !selectedFlavourId}
+          onClick={preparePreorder}
+        >
+          {busy ? '處理中…' : '確認取罐店與金額'}
+        </Button>
+      </section>
+    );
+  }
+
+  if (step === 'confirm_preorder' && order) {
+    const isExchange = order.orderType === 'exchange';
+    const flavour = catalog?.flavours.find((item) => item.id === selectedFlavourId);
+    return (
+      <section className="space-y-4">
+        <dl className="space-y-2 text-sm">
+          <Row label="取罐店" value={order.merchantName} />
+          {flavour && <Row label="口味" value={flavour.name} />}
+          <Row label="金額" value={`NT$${order.totalAmount}`} />
+        </dl>
+        <p>{isExchange ? '取罐時請帶合格空罐。未帶或驗收不符，可補 NT$30 取罐，本次不集點。' : '首罐到店直接領取，本次不集點。'}</p>
+        {error && <LiffStatus message={error} variant="error" />}
+        <Button type="button" className="min-h-12 w-full" disabled={busy} onClick={onConfirmPay}>
+          {busy ? '處理中…' : REFILL_COPY.confirmPayAmount(order.totalAmount)}
+        </Button>
+      </section>
+    );
   }
 
   if (step === 'register') {

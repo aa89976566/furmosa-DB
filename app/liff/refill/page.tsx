@@ -24,6 +24,7 @@ export default async function LiffRefillPage(
       storeId={searchParams?.storeId ?? null}
       orderId={searchParams?.orderId ?? null}
       paidHint={searchParams?.paid === '1'}
+      standalonePreorder={process.env.REFILL_STANDALONE_PREORDER_ENABLED === 'true'}
     />
   );
 }
