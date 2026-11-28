@@ -1,5 +1,12 @@
 /** POS 換罐畫面用的狀態與查詢整理。不改後端訂單狀態機。 */
 
+export function selectRefillDeliveryItem(
+  requestedFlavourId: string | null,
+  selection: { flavourId: string; quantity: number },
+) {
+  return requestedFlavourId ? { flavourId: requestedFlavourId, quantity: 1 } : selection;
+}
+
 export type RefillLookupKind = 'serial' | 'id' | 'display' | 'unknown';
 
 export type ParsedRefillLookup =

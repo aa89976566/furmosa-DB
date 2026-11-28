@@ -122,6 +122,7 @@ export async function listMerchantRefillOrders(merchantId: string) {
     orderType: o.orderType,
     deliveryMode: o.deliveryMode,
     totalAmount: o.totalAmount,
+    requestedFlavourId: o.requestedFlavourId,
     extraAmount: o.extraAmount,
     petName: o.petName ?? o.appointment?.petName ?? null,
     customerName: o.customer.name,
