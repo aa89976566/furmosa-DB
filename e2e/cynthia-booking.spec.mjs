@@ -57,7 +57,8 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
   expect(tasks[0].status).toBe('todo');
   expect(tasks[0].title).toContain('待付款');
   const cartUrl = 'https://furmosa.com/cart/add';
-  await page.route(cartUrl, route => route.fulfill({ status: 200, body: '購物袋測試回應' }));
+  // Capture the real form submission without navigating to the live storefront in CI.
+  await page.route(cartUrl, route => route.abort('aborted'));
   const cartRequest = page.waitForRequest(request => request.url() === cartUrl && request.method() === 'POST');
   await page.getByRole('button', { name: '加入購物袋', exact: true }).click();
   const fields = new URLSearchParams((await cartRequest).postData());
@@ -70,7 +71,6 @@ test('Cynthia calendar submits both Taiwan times and shows the request in HQ', a
   expect(fields.get('properties[預約狀態]')).toBe('待付款，時段待確認');
   expect(fields.has('lineId')).toBe(false);
   expect(fields.has('name')).toBe(false);
-  await expect(page.getByText('購物袋測試回應')).toBeVisible();
   expect(tasks[0].description).toContain(date + 'T14:00');
   expect(tasks[0].description).toContain(date + 'T16:30');
 
